@@ -15,6 +15,7 @@ faucet_core.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 risc0-zkvm.workspace = true
+lez-events = { path = "../lez-events" }
 serde.workspace = true
 serde_with.workspace = true
 sha2.workspace = true

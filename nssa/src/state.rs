@@ -767,7 +767,7 @@ pub mod tests {
         let tx = transfer_transaction(from, &from_key, 0, to, &to_key, 0, balance_to_move);
         let result = state.transition_from_public_transaction(&tx, 1, 0);
 
-        assert!(matches!(result, Err(NssaError::ProgramExecutionFailed(_))));
+        assert!(matches!(result, Err(NssaError::ProgramExecutionFailed { .. })));
         assert_eq!(state.get_account_by_id(from).balance, 100);
         assert_eq!(state.get_account_by_id(to).balance, 0);
         assert_eq!(state.get_account_by_id(from).nonce, Nonce(0));

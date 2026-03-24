@@ -12,6 +12,7 @@ use sequencer_core::{DbError, SequencerCore, block_publisher::BlockPublisherTrai
 use sequencer_service_protocol::{
     Account, AccountId, Block, BlockId, Commitment, HashType, MembershipProof, Nonce, ProgramId,
 };
+use sequencer_service_rpc::{AttributedEvent, TxReceipt, TxStatus};
 use tokio::sync::Mutex;
 
 const NOT_FOUND_ERROR_CODE: i32 = -31999;
@@ -172,6 +173,50 @@ impl<BC: BlockPublisherTrait + Send + 'static> sequencer_service_rpc::RpcServer
             nssa::PRIVACY_PRESERVING_CIRCUIT_ID,
         );
         Ok(program_ids)
+    }
+
+    async fn get_transaction_receipt(
+        &self,
+        tx_hash: HashType,
+    ) -> Result<TxReceipt, ErrorObjectOwned> {
+        let sequencer = self.sequencer.lock().await;
+
+        // Check if included in a block
+        if let Some(_tx) = sequencer.block_store().get_transaction_by_hash(tx_hash) {
+            return Ok(TxReceipt {
+                tx_hash,
+                status: TxStatus::Included,
+                events: vec![],  // TODO: extract events from included tx
+                error: None,
+                block_id: None,  // TODO: return actual block_id
+            });
+        }
+
+        // Check if rejected
+        if let Some(rejected) = sequencer.rejected_tx_store().get(&tx_hash) {
+            let events = rejected.events.iter().map(|e| AttributedEvent {
+                program_id: [0u32; 8],  // program_id attribution via host
+                discriminant: e.discriminant,
+                sequence: e.sequence,
+                payload: e.payload.clone(),
+            }).collect();
+            return Ok(TxReceipt {
+                tx_hash,
+                status: TxStatus::Rejected,
+                events,
+                error: Some(rejected.error.clone()),
+                block_id: None,
+            });
+        }
+
+        // Unknown
+        Ok(TxReceipt {
+            tx_hash,
+            status: TxStatus::Unknown,
+            events: vec![],
+            error: None,
+            block_id: None,
+        })
     }
 }
 

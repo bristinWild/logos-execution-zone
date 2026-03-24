@@ -3,7 +3,7 @@ use nssa_core::{
     account::AccountWithMetadata,
     program::{InstructionData, ProgramId, ProgramOutput},
 };
-use risc0_zkvm::{ExecutorEnv, ExecutorEnvBuilder, default_executor, serde::to_vec};
+use risc0_zkvm::{ExecutorEnv, ExecutorEnvBuilder, ExitCode, default_executor, serde::to_vec};
 use serde::Serialize;
 
 use crate::{
@@ -52,13 +52,43 @@ impl Program {
         to_vec(&instruction).map_err(|e| NssaError::InstructionSerializationError(e.to_string()))
     }
 
-    pub(crate) fn execute(
+    //changess
+    // pub fn execute(
+    //     &self,
+    //     pre_states: &[AccountWithMetadata],
+    //     instruction_data: &InstructionData,
+    // ) -> Result<ProgramOutput, NssaError> {
+    //     // Write inputs to the program
+    //     let mut env_builder = ExecutorEnv::builder();
+    //     env_builder.session_limit(Some(MAX_NUM_CYCLES_PUBLIC_EXECUTION));
+    //     Self::write_inputs(pre_states, instruction_data, &mut env_builder)?;
+    //     let env = env_builder.build().unwrap();
+
+    //     // Execute the program (without proving)
+    //     let executor = default_executor();
+    //     let session_info = executor
+    //         .execute(env, self.elf())
+    //         .map_err(|e| NssaError::ProgramExecutionFailed {
+    //             exit_code: 0,
+    //             partial_output: None,
+    //             message: e.to_string(),
+    //         })?;
+
+    //     // Get outputs
+    //     let program_output = session_info
+    //         .journal
+    //         .decode()
+    //         .map_err(|e| NssaError::ProgramExecutionFailed { exit_code: 0, partial_output: None, message: e.to_string() })?;
+
+    //     Ok(program_output)
+    // }
+
+    pub fn execute(
         &self,
         caller_program_id: Option<ProgramId>,
         pre_states: &[AccountWithMetadata],
         instruction_data: &InstructionData,
     ) -> Result<ProgramOutput, NssaError> {
-        // Write inputs to the program
         let mut env_builder = ExecutorEnv::builder();
         env_builder.session_limit(Some(MAX_NUM_CYCLES_PUBLIC_EXECUTION));
         Self::write_inputs(
@@ -70,21 +100,48 @@ impl Program {
         )?;
         let env = env_builder.build().unwrap();
 
-        // Execute the program (without proving)
         let executor = default_executor();
         let session_info = executor
             .execute(env, self.elf())
-            .map_err(|e| NssaError::ProgramExecutionFailed(e.to_string()))?;
+            .map_err(|e| NssaError::ProgramExecutionFailed { exit_code: 0, partial_output: None, message: e.to_string() })?;
 
-        // Get outputs
-        let program_output = session_info
-            .journal
-            .decode()
-            .map_err(|e| NssaError::ProgramExecutionFailed(e.to_string()))?;
-
-        Ok(program_output)
+        // Check exit code — panic!() in guest = Halted(non-zero)
+        // Journal is still populated with whatever was committed before panic
+        match session_info.exit_code {
+            ExitCode::Halted(0) => {
+                // Try success path first: decode as full ProgramOutput
+                match session_info.journal.decode::<nssa_core::program::ProgramOutput>() {
+                    Ok(output) => Ok(output),
+                    Err(_) => {
+                        // Decode failed — program may have called write_nssa_outputs_on_failure
+                        // before panicking (in dev mode panics also return Halted(0))
+                        let partial = extract_events_from_panic_journal(&session_info.journal);
+                        Err(NssaError::ProgramExecutionFailed {
+                            exit_code: 0,
+                            partial_output: partial.map(Box::new),
+                            message: "Guest panicked (dev mode)".to_string(),
+                        })
+                    }
+                }
+            }
+            ExitCode::Halted(code) => {
+                // Guest panicked — try to extract individually committed events from journal.
+                // Each emit_event() on the guest commits an EventRecord to the journal.
+                // Parse them by repeatedly deserializing EventRecords until exhausted.
+                let partial_output = extract_events_from_panic_journal(&session_info.journal);
+                Err(NssaError::ProgramExecutionFailed {
+                    exit_code: code,
+                    partial_output: partial_output.map(Box::new),
+                    message: format!("Guest halted with non-zero exit code: {code}"),
+                })
+            }
+            other => Err(NssaError::ProgramExecutionFailed {
+                exit_code: 0,
+                partial_output: None,
+                message: format!("Unexpected exit code: {other:?}"),
+            }),
+        }
     }
-
     /// Writes inputs to `env_builder` in the order expected by the programs.
     pub(crate) fn write_inputs(
         program_id: ProgramId,
@@ -542,5 +599,36 @@ mod tests {
             let program = Program::new(elf.to_vec()).unwrap();
             assert_eq!(program.id(), *expected_id);
         }
+    }
+}
+
+/// Extract events from a panic journal.
+/// Programs call write_nssa_outputs_on_failure() before panicking,
+/// which commits Vec<EventRecord> to the journal.
+/// We decode that here to recover events from failed transactions.
+fn extract_events_from_panic_journal(
+    journal: &risc0_zkvm::Journal,
+) -> Option<nssa_core::program::ProgramOutput> {
+    use nssa_core::program::ProgramOutput;
+
+    if journal.bytes.is_empty() {
+        return None;
+    }
+
+    // Try to decode journal as (FAILURE_SENTINEL, Vec<EventRecord>)
+    // written by write_nssa_outputs_on_failure()
+    match journal.decode::<(u32, Vec<lez_events::EventRecord>)>() {
+        Ok((sentinel, events))
+            if sentinel == nssa_core::program::FAILURE_SENTINEL =>
+        {
+            Some(ProgramOutput {
+                instruction_data: vec![],
+                pre_states: vec![],
+                post_states: vec![],
+                chained_calls: vec![],
+                events,
+            })
+        }
+        _ => None,
     }
 }

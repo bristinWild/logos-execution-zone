@@ -1101,3 +1101,25 @@ mod tests {
         assert!(result.is_empty());
     }
 }
+
+/// Call this before panicking to preserve emitted events in the journal.
+/// The sequencer will extract these events and include them in the tx receipt.
+///
+/// # Example
+/// ```ignore
+/// if balance < amount {
+///     emit_event(1, &InsufficientFunds { requested: amount, available: balance });
+///     write_nssa_outputs_on_failure();
+///     panic!("Insufficient funds");
+/// }
+/// ```
+/// Sentinel tag written to journal before events on failure path.
+/// Allows host to distinguish failure journal from success ProgramOutput.
+pub const FAILURE_SENTINEL: u32 = 0xDEAD_FA11;
+
+pub fn write_nssa_outputs_on_failure() {
+    use risc0_zkvm::guest::env;
+    let events = lez_events::drain_events();
+    // Write sentinel + events so host can distinguish from success ProgramOutput
+    env::commit(&(FAILURE_SENTINEL, events));
+}

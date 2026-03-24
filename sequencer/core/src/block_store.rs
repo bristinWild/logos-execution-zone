@@ -12,6 +12,13 @@ use nssa::V03State;
 pub use storage::DbResult;
 use storage::sequencer::RocksDBIO;
 
+/// A transaction that failed execution, preserved with any events emitted before failure.
+#[derive(Debug, Clone)]
+pub struct RejectedTx {
+    pub error: String,
+    pub events: Vec<lez_events::EventRecord>,
+    pub block_height: u64,
+}
 pub struct SequencerStore {
     dbio: Arc<RocksDBIO>,
     // TODO: Consider adding the hashmap to the database for faster recovery.
@@ -164,6 +171,23 @@ impl SequencerStore {
             serde_json::to_vec(checkpoint).context("Failed to serialize zone-sdk checkpoint")?;
         self.dbio.put_zone_sdk_checkpoint_bytes(&bytes)?;
         Ok(())
+    }
+}
+
+/// In-memory store for rejected transactions and their events.
+/// Keyed by tx hash, cleared on sequencer restart.
+#[derive(Default)]
+pub struct RejectedTxStore {
+    inner: HashMap<HashType, RejectedTx>,
+}
+
+impl RejectedTxStore {
+    pub fn insert(&mut self, tx_hash: HashType, rejected: RejectedTx) {
+        self.inner.insert(tx_hash, rejected);
+    }
+
+    pub fn get(&self, tx_hash: &HashType) -> Option<&RejectedTx> {
+        self.inner.get(tx_hash)
     }
 }
 

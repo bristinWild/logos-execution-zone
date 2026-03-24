@@ -31,6 +31,7 @@ pub mod mock;
 pub struct SequencerCore<BP: BlockPublisherTrait = ZoneSdkPublisher> {
     state: nssa::V03State,
     store: SequencerStore,
+    rejected_tx_store: crate::block_store::RejectedTxStore,
     mempool: MemPool<NSSATransaction>,
     sequencer_config: SequencerConfig,
     chain_height: u64,
@@ -156,6 +157,7 @@ impl<BP: BlockPublisherTrait> SequencerCore<BP> {
         let sequencer_core = Self {
             state,
             store,
+            rejected_tx_store: crate::block_store::RejectedTxStore::default(),
             mempool,
             chain_height: latest_block_meta.id,
             sequencer_config: config,
@@ -249,6 +251,19 @@ impl<BP: BlockPublisherTrait> SequencerCore<BP> {
                     error!(
                         "Transaction with hash {tx_hash} failed execution check with error: {err:#?}, skipping it",
                     );
+                    let events = match &err {
+                        nssa::error::NssaError::ProgramExecutionFailed { partial_output, .. } => {
+                            partial_output.as_ref()
+                                .map(|o| o.events.clone())
+                                .unwrap_or_default()
+                        }
+                        _ => vec![],
+                    };
+                    self.rejected_tx_store.insert(tx_hash, crate::block_store::RejectedTx {
+                        error: err.to_string(),
+                        events,
+                        block_height: new_block_height,
+                    });
                     continue;
                 }
             };
@@ -304,6 +319,9 @@ impl<BP: BlockPublisherTrait> SequencerCore<BP> {
         self.chain_height
     }
 
+    pub fn rejected_tx_store(&self) -> &crate::block_store::RejectedTxStore {
+        &self.rejected_tx_store
+    }
     pub const fn sequencer_config(&self) -> &SequencerConfig {
         &self.sequencer_config
     }
@@ -611,7 +629,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(nssa::error::NssaError::ProgramExecutionFailed(_))
+            Err(nssa::error::NssaError::ProgramExecutionFailed { .. })
         ));
     }
 
@@ -638,7 +656,7 @@ mod tests {
             .execute_check_on_state(&mut sequencer.state, 0, 0);
         let is_failed_at_balance_mismatch = matches!(
             result.err().unwrap(),
-            nssa::error::NssaError::ProgramExecutionFailed(_)
+            nssa::error::NssaError::ProgramExecutionFailed { .. }
         );
 
         assert!(is_failed_at_balance_mismatch);
@@ -1061,3 +1079,7 @@ mod tests {
         );
     }
 }
+
+
+
+

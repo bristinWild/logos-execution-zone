@@ -1,0 +1,11 @@
+[package]
+name = "emit_event_demo_programs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+nssa_core.workspace = true
+lez-events = { path = "../../../../lez-events" }
+risc0-zkvm.workspace = true
+borsh = { version = "1.6.0", features = ["derive"] }
+serde = { workspace = true }

@@ -11,7 +11,7 @@ workspace = true
 sequencer_service_protocol.workspace = true
 
 jsonrpsee = { workspace = true, features = ["macros"] }
-
+serde = { workspace = true }
 [features]
 client = ["jsonrpsee/client"]
 server = ["jsonrpsee/server"]
