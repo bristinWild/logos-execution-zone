@@ -2282,6 +2282,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 
 [[package]]
+name = "emit_event_demo"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "emit_event_demo_methods",
+ "lez-events",
+ "nssa",
+ "nssa_core",
+ "risc0-zkvm",
+ "serde",
+]
+
+[[package]]
+name = "emit_event_demo_methods"
+version = "0.1.0"
+dependencies = [
+ "risc0-build",
+]
+
+[[package]]
+name = "emit_event_demo_programs"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "lez-events",
+ "nssa_core",
+ "risc0-zkvm",
+ "serde",
+]
+
+[[package]]
 name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4224,6 +4255,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "lez-events"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "risc0-zkvm",
+ "serde",
+]
+
+[[package]]
+name = "lez-events-decoder"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+ "clap",
+ "lez-events",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.183"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5249,6 +5300,7 @@ dependencies = [
  "env_logger",
  "hex",
  "hex-literal 1.1.0",
+ "lez-events",
  "log",
  "nssa_core",
  "rand 0.8.5",
@@ -5275,6 +5327,7 @@ dependencies = [
  "bytesize",
  "chacha20",
  "k256",
+ "lez-events",
  "risc0-zkvm",
  "serde",
  "serde_json",
@@ -7146,6 +7199,7 @@ dependencies = [
  "futures",
  "humantime-serde",
  "jsonrpsee",
+ "lez-events",
  "log",
  "logos-blockchain-core",
  "logos-blockchain-key-management-system-service",
@@ -7199,6 +7253,7 @@ version = "0.1.0"
 dependencies = [
  "jsonrpsee",
  "sequencer_service_protocol",
+ "serde",
 ]
 
 [[package]]

@@ -25,3 +25,7 @@ serde_json.workspace = true
 [features]
 default = []
 host = ["dep:k256"]
+
+
+[dependencies.lez-events]
+path = "../../lez-events"

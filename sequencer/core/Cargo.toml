@@ -40,3 +40,6 @@ mock = []
 
 [dev-dependencies]
 futures.workspace = true
+
+[dependencies.lez-events]
+path = "../../lez-events"

@@ -9,6 +9,13 @@ use common::{
 use nssa::V03State;
 use storage::{error::DbError, sequencer::RocksDBIO};
 
+/// A transaction that failed execution, preserved with any events emitted before failure.
+#[derive(Debug, Clone)]
+pub struct RejectedTx {
+    pub error: String,
+    pub events: Vec<lez_events::EventRecord>,
+    pub block_height: u64,
+}
 pub struct SequencerStore {
     dbio: RocksDBIO,
     // TODO: Consider adding the hashmap to the database for faster recovery.
@@ -102,6 +109,23 @@ impl SequencerStore {
 
     pub fn get_nssa_state(&self) -> Option<V03State> {
         self.dbio.get_nssa_state().ok()
+    }
+}
+
+/// In-memory store for rejected transactions and their events.
+/// Keyed by tx hash, cleared on sequencer restart.
+#[derive(Default)]
+pub struct RejectedTxStore {
+    inner: HashMap<HashType, RejectedTx>,
+}
+
+impl RejectedTxStore {
+    pub fn insert(&mut self, tx_hash: HashType, rejected: RejectedTx) {
+        self.inner.insert(tx_hash, rejected);
+    }
+
+    pub fn get(&self, tx_hash: &HashType) -> Option<&RejectedTx> {
+        self.inner.get(tx_hash)
     }
 }
 

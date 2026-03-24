@@ -1,0 +1,15 @@
+[package]
+name = "lez-events-decoder"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "lez-events-decoder"
+path = "src/main.rs"
+
+[dependencies]
+lez-events = { path = "../lez-events" }
+clap = { version = "4", features = ["derive"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+borsh = { version = "1.6.0", features = ["derive"] }

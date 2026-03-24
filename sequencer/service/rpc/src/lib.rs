@@ -9,6 +9,42 @@ use sequencer_service_protocol::{
     Account, AccountId, Block, BlockId, Commitment, HashType, MembershipProof, NSSATransaction,
     Nonce, ProgramId,
 };
+use serde::{Deserialize, Serialize};
+
+/// Status of a submitted transaction.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TxStatus {
+    /// Transaction is in the mempool, not yet included in a block.
+    Pending,
+    /// Transaction was included in a block successfully.
+    Included,
+    /// Transaction failed execution and was rejected.
+    Rejected,
+    /// Transaction hash is unknown.
+    Unknown,
+}
+
+/// An event attributed to a specific program.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttributedEvent {
+    /// The program that emitted this event.
+    pub program_id: ProgramId,
+    /// The event record.
+    pub discriminant: u32,
+    pub sequence: u32,
+    pub payload: Vec<u8>,
+}
+
+/// Receipt returned after transaction execution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TxReceipt {
+    pub tx_hash: HashType,
+    pub status: TxStatus,
+    pub events: Vec<AttributedEvent>,
+    pub error: Option<String>,
+    pub block_id: Option<BlockId>,
+}
 
 #[cfg(all(not(feature = "server"), not(feature = "client")))]
 compile_error!("At least one of `server` or `client` features must be enabled.");
@@ -88,5 +124,12 @@ pub trait Rpc {
     #[method(name = "getProgramIds")]
     async fn get_program_ids(&self) -> Result<BTreeMap<String, ProgramId>, ErrorObjectOwned>;
 
+
+    /// Returns the receipt for a transaction, including status and any emitted events.
+    #[method(name = "getTransactionReceipt")]
+    async fn get_transaction_receipt(
+        &self,
+        tx_hash: HashType,
+    ) -> Result<TxReceipt, ErrorObjectOwned>;
     // =============================================================================================
 }

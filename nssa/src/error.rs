@@ -34,8 +34,12 @@ pub enum NssaError {
     #[error("Risc0 error: {0}")]
     ProgramWriteInputFailed(String),
 
-    #[error("Risc0 error: {0}")]
-    ProgramExecutionFailed(String),
+    #[error("Program execution failed: {message}")]
+    ProgramExecutionFailed {
+        exit_code: u32,
+        partial_output: Option<Box<nssa_core::program::ProgramOutput>>,
+        message: String,
+    },
 
     #[error("Risc0 error: {0}")]
     ProgramProveFailed(String),
