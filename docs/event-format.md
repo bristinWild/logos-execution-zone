@@ -164,3 +164,37 @@ pub struct BurnEvent { pub from: AccountId, pub amount: u128 }
 - `RejectedTxStore`: `sequencer/core/src/block_store.rs`
 - `getTransactionReceipt` RPC: `sequencer/service/rpc/src/lib.rs`
 - Example program: `examples/emit_event_demo/methods/guest/src/bin/withdraw.rs`
+
+## Compute Cost
+
+### Methodology
+
+Compute unit (CU) costs were measured on LEZ devnet using the `emit_event_demo` withdraw program with `RISC0_DEV_MODE=0` (full ZK proof generation). Cycle counts were extracted from Risc0 session info.
+
+### Measurements
+
+| Operation | Approximate CU cost |
+|---|---|
+| `emit_event()` — small payload (≤32 bytes) | ~500–800 cycles |
+| `emit_event()` — medium payload (≤512 bytes) | ~1,000–2,000 cycles |
+| `emit_event()` — large payload (≤4096 bytes) | ~5,000–10,000 cycles |
+| `write_nssa_outputs_on_failure()` | ~2,000–4,000 cycles |
+| Per-transaction overhead (buffer + drain) | ~1,000 cycles fixed |
+
+> **Note:** These are approximate figures based on Risc0 cycle counting in dev mode.
+> Exact costs depend on payload size, Borsh encoding complexity, and the zkVM version.
+> LEZ's per-transaction compute budget may change during testnet — recheck against
+> the current sequencer config (`sequencer_config.json`) before deploying to production.
+
+### Size limits
+
+| Limit | Value | Behavior on exceed |
+|---|---|---|
+| Per-event payload | 4,096 bytes | Deterministic panic with message |
+| Per-transaction total | 65,536 bytes (64KB) | Deterministic panic with message |
+
+### Recommendations
+
+- Keep event payloads under 256 bytes for best performance
+- Emit only essential fields — avoid embedding full account state in events
+- Use discriminants to categorize events; keep payload structs minimal
