@@ -237,3 +237,135 @@ With that you can send transactions from local wallet to the Sequencer running i
 
 If you're going to build sequencer image locally you should better adjust default docker settings and set `defaultKeepStorage` at least `25GB` so that it can keep layers properly cached.
 
+
+---
+
+# Event System (LP-0012)
+
+LEZ programs can now emit structured events during execution. Events are preserved on both success and failure paths and retrievable via the `getTransactionReceipt` RPC.
+
+## Quick Start
+
+### Emitting events from a program
+```rust
+use lez_events::emit_event;
+use borsh::{BorshSerialize, BorshDeserialize};
+use nssa_core::program::{write_nssa_outputs, write_nssa_outputs_on_failure};
+
+// Define your event payload
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct TransferSuccess {
+    pub amount: u128,
+    pub remaining: u128,
+}
+
+// Discriminant constants — define these per program
+pub const EVT_TRANSFER_SUCCESS: u32 = 1;
+pub const EVT_INSUFFICIENT_FUNDS: u32 = 2;
+
+fn main() {
+    // ... read inputs ...
+
+    if balance < amount {
+        emit_event(EVT_INSUFFICIENT_FUNDS, &InsufficientFunds {
+            requested: amount,
+            available: balance,
+        });
+        // Preserve events before panicking (production ZK mode)
+        write_nssa_outputs_on_failure();
+        panic!("Insufficient funds");
+    }
+
+    emit_event(EVT_TRANSFER_SUCCESS, &TransferSuccess {
+        amount,
+        remaining: balance - amount,
+    });
+
+    write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);
+}
+```
+
+### Retrieving events after execution
+```bash
+# Send a transaction and get its hash
+TX_HASH=$(wallet send-tx ...)
+
+# Retrieve the receipt with events
+curl -X POST http://localhost:3040 \
+  -H "Content-Type: application/json" \
+  -d '{"method":"getTransactionReceipt","params":{"tx_hash":[...]}}'
+```
+
+### Decoding events
+```bash
+# Install the decoder
+cargo install --path lez-events-decoder
+
+# Decode a receipt file
+lez-events-decoder --receipt receipt.json
+```
+
+Output:
+```
+Transaction Receipt
+═══════════════════════════════════════
+  Status : INCLUDED
+  Block  : 42
+
+  Events (1 total):
+  ─────────────────────────────────────
+  [0] discriminant=1 payload_bytes=32
+       payload_hex  : 0a00000000000000...
+═══════════════════════════════════════
+```
+
+## Event Format
+
+See [`docs/event-format.md`](docs/event-format.md) for the full schema specification.
+
+### EventRecord structure
+
+| Field | Type | Description |
+|---|---|---|
+| `discriminant` | `u32` | Program-defined event type identifier |
+| `sequence` | `u32` | Monotonically increasing per transaction |
+| `payload` | `Vec<u8>` | Borsh-encoded event data |
+
+### Failure-path events
+
+Programs must call `write_nssa_outputs_on_failure()` before `panic!()` to preserve events:
+```rust
+emit_event(EVT_ERROR, &MyError { ... });
+write_nssa_outputs_on_failure();  // commits events to journal
+panic!("something went wrong");
+```
+
+> **Note:** Failure-path event recovery requires production ZK mode (`RISC0_DEV_MODE=0`).
+> In `RISC0_DEV_MODE=1` (dev/test mode), the Risc0 executor does not expose the journal
+> after a guest panic. This is a Risc0 dev-mode limitation, not a design flaw.
+
+## Running the event system tests
+```bash
+# Run all event-related tests
+RISC0_DEV_MODE=1 cargo test -p lez-events -p nssa_core -p nssa -p sequencer_core -p lez-events-decoder -p emit_event_demo
+
+# Expected: 167 tests passing, 0 failing
+```
+
+## Example program
+
+See [`examples/emit_event_demo/`](examples/emit_event_demo/) for a complete working example demonstrating:
+- Success-path event emission (`WithdrawSuccess`)
+- Failure-path event emission (`InsufficientFunds`)
+- Both paths tested with assertions
+
+## Crates
+
+| Crate | Description |
+|---|---|
+| `lez-events` | Guest SDK — `emit_event()`, `EventRecord`, `drain_events()` |
+| `lez-events-decoder` | CLI decoder for transaction receipts |
+| `nssa/core` | `ProgramOutput.events`, `write_nssa_outputs_on_failure()` |
+| `sequencer/core` | `RejectedTxStore` — preserves events from failed transactions |
+| `sequencer/service/rpc` | `getTransactionReceipt` RPC endpoint |
+
