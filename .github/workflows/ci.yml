@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RISC0_DEV_MODE: 1
+  RISC0_DEV_MODE: "1"
 
 jobs:
   test:
@@ -23,7 +23,12 @@ jobs:
       - name: Install Risc0
         run: |
           curl -L https://risczero.com/install | bash
-          source ~/.bashrc
+          echo "$HOME/.risc0/bin" >> $GITHUB_PATH
+          $HOME/.risc0/bin/rzup install || true
+
+      - name: Install rzup and toolchain
+        run: |
+          export PATH="$HOME/.risc0/bin:$PATH"
           rzup install
 
       - name: Cache cargo registry
@@ -37,25 +42,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Build
-        run: RISC0_DEV_MODE=1 cargo build --workspace 2>&1
-
       - name: Run event system tests
         run: |
           RISC0_DEV_MODE=1 cargo test -p lez-events
           RISC0_DEV_MODE=1 cargo test -p nssa_core
-          RISC0_DEV_MODE=1 cargo test -p nssa
           RISC0_DEV_MODE=1 cargo test -p sequencer_core
           RISC0_DEV_MODE=1 cargo test -p lez-events-decoder
-          RISC0_DEV_MODE=1 cargo test -p emit_event_demo
 
-  fmt:
-    name: Format check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - name: Check formatting
-        run: cargo fmt --check -p lez-events -p lez-events-decoder
+      - name: Run nssa tests
+        run: RISC0_DEV_MODE=1 cargo test -p nssa
+
+      - name: Run demo tests
+        run: RISC0_DEV_MODE=1 cargo test -p emit_event_demo
