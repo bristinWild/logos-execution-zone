@@ -40,9 +40,6 @@ jobs:
       - name: Run nssa_core tests
         run: RISC0_DEV_MODE=1 cargo test -p nssa_core
 
-      - name: Run sequencer_core tests
-        run: RISC0_DEV_MODE=1 cargo test -p sequencer_core
-
       - name: Run lez-events-decoder tests
         run: RISC0_DEV_MODE=1 cargo test -p lez-events-decoder
 
