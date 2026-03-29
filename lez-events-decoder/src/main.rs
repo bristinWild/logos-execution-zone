@@ -5,7 +5,6 @@
 //!   echo '<json>' | lez-events-decoder --stdin
 
 use clap::Parser;
-use lez_events::EventRecord;
 use serde::{Deserialize, Serialize};
 use std::{fs, io::{self, Read}};
 
