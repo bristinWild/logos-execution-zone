@@ -69,22 +69,43 @@ pub mod buffer {
 /// # Panics
 /// Panics if the encoded payload exceeds MAX_EVENT_PAYLOAD_BYTES (4096 bytes),
 /// or if the total accumulated event payload exceeds MAX_TOTAL_EVENT_BYTES (64KB).
-pub fn emit_event<T: BorshSerialize>(discriminant: u32, event: &T) {
+/// Error type returned by `emit_event` when size limits are exceeded.
+#[derive(Debug, PartialEq, Eq)]
+pub enum EventError {
+    /// Single event payload exceeds MAX_EVENT_PAYLOAD_BYTES.
+    PayloadTooLarge { size: usize, max: usize },
+    /// Total accumulated event buffer exceeds MAX_TOTAL_EVENT_BYTES.
+    TotalBufferTooLarge { size: usize, max: usize },
+}
+
+impl core::fmt::Display for EventError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            EventError::PayloadTooLarge { size, max } =>
+                write!(f, "event payload too large: {size} bytes exceeds MAX_EVENT_PAYLOAD_BYTES ({max})"),
+            EventError::TotalBufferTooLarge { size, max } =>
+                write!(f, "total event buffer too large: {size} bytes exceeds MAX_TOTAL_EVENT_BYTES ({max})"),
+        }
+    }
+}
+
+pub fn emit_event<T: BorshSerialize>(discriminant: u32, event: &T) -> Result<(), EventError> {
     let payload = encode_payload(event);
-    assert!(
-        payload.len() <= MAX_EVENT_PAYLOAD_BYTES,
-        "event payload too large: {} bytes exceeds MAX_EVENT_PAYLOAD_BYTES ({})",
-        payload.len(),
-        MAX_EVENT_PAYLOAD_BYTES,
-    );
+    if payload.len() > MAX_EVENT_PAYLOAD_BYTES {
+        return Err(EventError::PayloadTooLarge {
+            size: payload.len(),
+            max: MAX_EVENT_PAYLOAD_BYTES,
+        });
+    }
     let total = buffer::total_payload_bytes() + payload.len();
-    assert!(
-        total <= MAX_TOTAL_EVENT_BYTES,
-        "total event buffer too large: {} bytes exceeds MAX_TOTAL_EVENT_BYTES ({})",
-        total,
-        MAX_TOTAL_EVENT_BYTES,
-    );
+    if total > MAX_TOTAL_EVENT_BYTES {
+        return Err(EventError::TotalBufferTooLarge {
+            size: total,
+            max: MAX_TOTAL_EVENT_BYTES,
+        });
+    }
     buffer::emit_raw(discriminant, payload);
+    Ok(())
 }
 
 pub fn drain_events() -> Vec<EventRecord> {
@@ -123,8 +144,8 @@ mod tests {
     fn emit_and_drain() {
         buffer::reset();
         let event = TestEvent { value: 99, label: "test".to_string() };
-        emit_event(5, &event);
-        emit_event(5, &event);
+        emit_event(5, &event).unwrap();
+        emit_event(5, &event).unwrap();
         let events = drain_events();
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].sequence, 0);
@@ -136,7 +157,7 @@ mod tests {
     #[test]
     fn drain_is_empty_after_drain() {
         buffer::reset();
-        emit_event(1, &42u64);
+        emit_event(1, &42u64).unwrap();
         drain_events();
         assert!(drain_events().is_empty());
     }
@@ -145,24 +166,24 @@ mod tests {
     fn payload_within_limit_succeeds() {
         buffer::reset();
         let payload = vec![0u8; MAX_EVENT_PAYLOAD_BYTES - 8];
-        emit_event(1, &payload);
+        emit_event(1, &payload).unwrap();
         let events = drain_events();
         assert_eq!(events.len(), 1);
     }
 
     #[test]
-    #[should_panic(expected = "event payload too large")]
-    fn payload_exceeds_limit_panics() {
+    fn payload_exceeds_limit_returns_error() {
         buffer::reset();
         let payload = vec![0u8; MAX_EVENT_PAYLOAD_BYTES + 100];
-        emit_event(1, &payload);
+        let result = emit_event(1, &payload);
+        assert!(matches!(result, Err(EventError::PayloadTooLarge { .. })));
     }
 
     #[test]
     fn total_payload_bytes_tracked() {
         buffer::reset();
-        emit_event(1, &42u64);
-        emit_event(2, &42u64);
+        emit_event(1, &42u64).unwrap();
+        emit_event(2, &42u64).unwrap();
         assert!(buffer::total_payload_bytes() > 0);
         drain_events();
         assert_eq!(buffer::total_payload_bytes(), 0);

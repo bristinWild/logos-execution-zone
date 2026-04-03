@@ -61,6 +61,11 @@ impl SequencerStore {
         Ok(self.dbio.mark_block_as_finalized(block_id)?)
     }
 
+    /// Returns the block ID containing the given transaction hash, if it exists.
+    pub fn get_block_id_for_tx(&self, hash: &HashType) -> Option<u64> {
+        self.tx_hash_to_block_map.get(hash).copied()
+    }
+
     /// Returns the transaction corresponding to the given hash, if it exists in the blockchain.
     pub fn get_transaction_by_hash(&self, hash: HashType) -> Option<NSSATransaction> {
         let block_id = *self.tx_hash_to_block_map.get(&hash)?;
@@ -287,5 +292,28 @@ mod tests {
             finalized_block.bedrock_status,
             common::block::BedrockStatus::Finalized
         ));
+    }
+}
+
+/// Events from a successfully included transaction.
+#[derive(Debug, Clone)]
+pub struct IncludedTx {
+    pub events: Vec<lez_events::EventRecord>,
+    pub block_id: u64,
+}
+
+/// In-memory store of events from included transactions.
+#[derive(Debug, Default)]
+pub struct IncludedTxStore {
+    inner: HashMap<HashType, IncludedTx>,
+}
+
+impl IncludedTxStore {
+    pub fn insert(&mut self, tx_hash: HashType, included: IncludedTx) {
+        self.inner.insert(tx_hash, included);
+    }
+
+    pub fn get(&self, tx_hash: &HashType) -> Option<&IncludedTx> {
+        self.inner.get(tx_hash)
     }
 }

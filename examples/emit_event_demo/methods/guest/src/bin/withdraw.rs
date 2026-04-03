@@ -55,7 +55,7 @@ fn main() {
         emit_event(INSUFFICIENT_FUNDS, &InsufficientFunds {
             requested: amount,
             available: balance,
-        });
+        }).unwrap();
         // Commit events to journal before panicking.
         // In production ZK mode, these are recoverable from the receipt.
         write_nssa_outputs_on_failure();
@@ -68,7 +68,7 @@ fn main() {
     emit_event(WITHDRAW_SUCCESS, &WithdrawSuccess {
         amount,
         remaining: post_account.balance,
-    });
+    }).unwrap();
 
     let post_state = AccountPostState::new(post_account);
     write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);

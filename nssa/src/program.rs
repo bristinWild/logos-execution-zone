@@ -8,7 +8,9 @@ use serde::Serialize;
 
 use crate::{
     error::NssaError,
-    program_methods::{AMM_ELF, AUTHENTICATED_TRANSFER_ELF, PINATA_ELF, TOKEN_ELF},
+    program_methods::{
+        AMM_ELF, ASSOCIATED_TOKEN_ACCOUNT_ELF, AUTHENTICATED_TRANSFER_ELF, PINATA_ELF, TOKEN_ELF,
+    },
 };
 
 /// Maximum number of cycles for a public execution.
@@ -161,6 +163,12 @@ impl Program {
     #[must_use]
     pub fn amm() -> Self {
         Self::new(AMM_ELF.to_vec()).expect("The AMM program must be a valid Risc0 program")
+    }
+
+    #[must_use]
+    pub fn ata() -> Self {
+        Self::new(ASSOCIATED_TOKEN_ACCOUNT_ELF.to_vec())
+            .expect("The ATA program must be a valid Risc0 program")
     }
 }
 
@@ -341,6 +349,20 @@ mod tests {
             // `program_methods`
             Self::new(MODIFIED_TRANSFER_ELF.to_vec()).unwrap()
         }
+
+        #[must_use]
+        pub fn validity_window() -> Self {
+            use test_program_methods::VALIDITY_WINDOW_ELF;
+            // This unwrap won't panic since the `VALIDITY_WINDOW_ELF` comes from risc0 build of
+            // `program_methods`
+            Self::new(VALIDITY_WINDOW_ELF.to_vec()).unwrap()
+        }
+
+        #[must_use]
+        pub fn validity_window_chain_caller() -> Self {
+            use test_program_methods::VALIDITY_WINDOW_CHAIN_CALLER_ELF;
+            Self::new(VALIDITY_WINDOW_CHAIN_CALLER_ELF.to_vec()).unwrap()
+        }
     }
 
     #[test]
@@ -417,6 +439,7 @@ fn extract_events_from_panic_journal(
                 post_states: vec![],
                 chained_calls: vec![],
                 events,
+                validity_window: nssa_core::program::ValidityWindow::new_unbounded(),
             })
         }
         _ => None,

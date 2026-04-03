@@ -185,13 +185,26 @@ impl<BC: BlockSettlementClientTrait + Send + 'static, IC: IndexerClientTrait + S
         let sequencer = self.sequencer.lock().await;
 
         // Check if included in a block
-        if let Some(_tx) = sequencer.block_store().get_transaction_by_hash(tx_hash) {
+        if sequencer.block_store().get_transaction_by_hash(tx_hash).is_some() {
+            let (events, block_id) = sequencer
+                .included_tx_store()
+                .get(&tx_hash)
+                .map(|inc| {
+                    let events = inc.events.iter().map(|e| AttributedEvent {
+                        program_id: [0u32; 8],
+                        discriminant: e.discriminant,
+                        sequence: e.sequence,
+                        payload: e.payload.clone(),
+                    }).collect();
+                    (events, Some(inc.block_id))
+                })
+                .unwrap_or_else(|| (vec![], None));
             return Ok(TxReceipt {
                 tx_hash,
                 status: TxStatus::Included,
-                events: vec![],  // TODO: extract events from included tx
+                events,
                 error: None,
-                block_id: None,  // TODO: return actual block_id
+                block_id,
             });
         }
 

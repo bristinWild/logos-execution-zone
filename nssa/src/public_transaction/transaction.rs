@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use log::debug;
 use nssa_core::{
     account::{Account, AccountId, AccountWithMetadata},
-    program::{ChainedCall, DEFAULT_PROGRAM_ID, validate_execution},
+    program::{BlockId, ChainedCall, DEFAULT_PROGRAM_ID, validate_execution},
 };
 use sha2::{Digest as _, digest::FixedOutput as _};
 
@@ -70,7 +70,8 @@ impl PublicTransaction {
     pub(crate) fn validate_and_produce_public_state_diff(
         &self,
         state: &V03State,
-    ) -> Result<HashMap<AccountId, Account>, NssaError> {
+        block_id: BlockId,
+    ) -> Result<(HashMap<AccountId, Account>, Vec<lez_events::EventRecord>), NssaError> {
         let message = self.message();
         let witness_set = self.witness_set();
 
@@ -128,6 +129,7 @@ impl PublicTransaction {
 
         let mut chained_calls = VecDeque::from_iter([(initial_call, None)]);
         let mut chain_calls_counter = 0;
+        let mut all_events: Vec<lez_events::EventRecord> = Vec::new();
 
         while let Some((chained_call, caller_program_id)) = chained_calls.pop_front() {
             ensure!(
@@ -190,6 +192,14 @@ impl PublicTransaction {
                 NssaError::InvalidProgramBehavior
             );
 
+            // Verify validity window
+            ensure!(
+                program_output
+                    .validity_window
+                    .is_valid_for_block_id(block_id),
+                NssaError::OutOfValidityWindow
+            );
+
             for post in program_output
                 .post_states
                 .iter_mut()
@@ -212,6 +222,7 @@ impl PublicTransaction {
                 state_diff.insert(pre.account_id, post.account().clone());
             }
 
+            all_events.extend(program_output.events);
             for new_call in program_output.chained_calls.into_iter().rev() {
                 chained_calls.push_front((new_call, Some(chained_call.program_id)));
             }
@@ -238,7 +249,7 @@ impl PublicTransaction {
             );
         }
 
-        Ok(state_diff)
+        Ok((state_diff, all_events))
     }
 }
 
@@ -359,7 +370,7 @@ pub mod tests {
 
         let witness_set = WitnessSet::for_message(&message, &[&key1, &key1]);
         let tx = PublicTransaction::new(message, witness_set);
-        let result = tx.validate_and_produce_public_state_diff(&state);
+        let result = tx.validate_and_produce_public_state_diff(&state, 1);
         assert!(matches!(result, Err(NssaError::InvalidInput(_))));
     }
 
@@ -379,7 +390,7 @@ pub mod tests {
 
         let witness_set = WitnessSet::for_message(&message, &[&key1, &key2]);
         let tx = PublicTransaction::new(message, witness_set);
-        let result = tx.validate_and_produce_public_state_diff(&state);
+        let result = tx.validate_and_produce_public_state_diff(&state, 1);
         assert!(matches!(result, Err(NssaError::InvalidInput(_))));
     }
 
@@ -400,7 +411,7 @@ pub mod tests {
         let mut witness_set = WitnessSet::for_message(&message, &[&key1, &key2]);
         witness_set.signatures_and_public_keys[0].0 = Signature::new_for_tests([1; 64]);
         let tx = PublicTransaction::new(message, witness_set);
-        let result = tx.validate_and_produce_public_state_diff(&state);
+        let result = tx.validate_and_produce_public_state_diff(&state, 1);
         assert!(matches!(result, Err(NssaError::InvalidInput(_))));
     }
 
@@ -420,7 +431,7 @@ pub mod tests {
 
         let witness_set = WitnessSet::for_message(&message, &[&key1, &key2]);
         let tx = PublicTransaction::new(message, witness_set);
-        let result = tx.validate_and_produce_public_state_diff(&state);
+        let result = tx.validate_and_produce_public_state_diff(&state, 1);
         assert!(matches!(result, Err(NssaError::InvalidInput(_))));
     }
 
@@ -436,7 +447,7 @@ pub mod tests {
 
         let witness_set = WitnessSet::for_message(&message, &[&key1, &key2]);
         let tx = PublicTransaction::new(message, witness_set);
-        let result = tx.validate_and_produce_public_state_diff(&state);
+        let result = tx.validate_and_produce_public_state_diff(&state, 1);
         assert!(matches!(result, Err(NssaError::InvalidInput(_))));
     }
 }
