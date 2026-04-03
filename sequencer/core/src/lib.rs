@@ -169,7 +169,7 @@ impl<BC: BlockSettlementClientTrait, IC: IndexerClientTrait> SequencerCore<BC, I
     fn execute_check_transaction_on_state(
         &mut self,
         tx: NSSATransaction,
-    ) -> Result<(NSSATransaction, Vec<lez_events::EventRecord>), nssa::error::NssaError> {
+    ) -> Result<(NSSATransaction, Vec<([u32; 8], lez_events::EventRecord)>), nssa::error::NssaError> {
         let events = match &tx {
             NSSATransaction::Public(t) => self
                 .state
@@ -177,7 +177,7 @@ impl<BC: BlockSettlementClientTrait, IC: IndexerClientTrait> SequencerCore<BC, I
             NSSATransaction::PrivacyPreserving(t) => self
                 .state
                 .transition_from_privacy_preserving_transaction(t, self.next_block_id())
-                .map(|_| vec![]),
+                .map(|_| vec![]),  // privacy-preserving txs have no attributed events
             NSSATransaction::ProgramDeployment(t) => self
                 .state
                 .transition_from_program_deployment_transaction(t)
@@ -255,8 +255,9 @@ pub fn produce_new_block_with_mempool_transactions(&mut self) -> Result<(SignedM
         match self.execute_check_transaction_on_state(tx) {
             Ok((valid_tx, events)) => {
                 let block_id = self.next_block_id();
+                let attributed_events: Vec<crate::block_store::AttributedEventRecord> = events.into_iter().map(|(program_id, event)| crate::block_store::AttributedEventRecord { program_id, event }).collect();
                 self.included_tx_store
-                    .insert(tx_hash, crate::block_store::IncludedTx { events, block_id });
+                    .insert(tx_hash, crate::block_store::IncludedTx { events: attributed_events, block_id });
                 valid_transactions.push(valid_tx);
                 info!("Validated transaction with hash {tx_hash}, including it in block");
                 if valid_transactions.len() >= self.sequencer_config.max_num_tx_in_block {

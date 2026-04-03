@@ -71,7 +71,7 @@ impl PublicTransaction {
         &self,
         state: &V03State,
         block_id: BlockId,
-    ) -> Result<(HashMap<AccountId, Account>, Vec<lez_events::EventRecord>), NssaError> {
+    ) -> Result<(HashMap<AccountId, Account>, Vec<([u32; 8], lez_events::EventRecord)>), NssaError> {
         let message = self.message();
         let witness_set = self.witness_set();
 
@@ -129,7 +129,7 @@ impl PublicTransaction {
 
         let mut chained_calls = VecDeque::from_iter([(initial_call, None)]);
         let mut chain_calls_counter = 0;
-        let mut all_events: Vec<lez_events::EventRecord> = Vec::new();
+        let mut all_events: Vec<([u32; 8], lez_events::EventRecord)> = Vec::new();
 
         while let Some((chained_call, caller_program_id)) = chained_calls.pop_front() {
             ensure!(
@@ -222,7 +222,7 @@ impl PublicTransaction {
                 state_diff.insert(pre.account_id, post.account().clone());
             }
 
-            all_events.extend(program_output.events);
+            all_events.extend(program_output.events.into_iter().map(|e| (chained_call.program_id, e)));
             for new_call in program_output.chained_calls.into_iter().rev() {
                 chained_calls.push_front((new_call, Some(chained_call.program_id)));
             }

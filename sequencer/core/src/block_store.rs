@@ -295,10 +295,17 @@ mod tests {
     }
 }
 
+/// Events from a successfully included transaction, with program attribution.
+#[derive(Debug, Clone)]
+pub struct AttributedEventRecord {
+    pub program_id: [u32; 8],
+    pub event: lez_events::EventRecord,
+}
+
 /// Events from a successfully included transaction.
 #[derive(Debug, Clone)]
 pub struct IncludedTx {
-    pub events: Vec<lez_events::EventRecord>,
+    pub events: Vec<AttributedEventRecord>,
     pub block_id: u64,
 }
 

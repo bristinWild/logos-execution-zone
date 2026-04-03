@@ -191,10 +191,10 @@ impl<BC: BlockSettlementClientTrait + Send + 'static, IC: IndexerClientTrait + S
                 .get(&tx_hash)
                 .map(|inc| {
                     let events = inc.events.iter().map(|e| AttributedEvent {
-                        program_id: [0u32; 8],
-                        discriminant: e.discriminant,
-                        sequence: e.sequence,
-                        payload: e.payload.clone(),
+                        program_id: e.program_id,
+                        discriminant: e.event.discriminant,
+                        sequence: e.event.sequence,
+                        payload: e.event.payload.clone(),
                     }).collect();
                     (events, Some(inc.block_id))
                 })

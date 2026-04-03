@@ -159,7 +159,7 @@ impl V03State {
         &mut self,
         tx: &PublicTransaction,
         block_id: BlockId,
-    ) -> Result<Vec<lez_events::EventRecord>, NssaError> {
+    ) -> Result<Vec<([u32; 8], lez_events::EventRecord)>, NssaError> {
         let (state_diff, events) = tx.validate_and_produce_public_state_diff(self, block_id)?;
 
         #[expect(
