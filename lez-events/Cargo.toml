@@ -1,4 +1,5 @@
 [package]
+license = "MIT OR Apache-2.0"
 name = "lez-events"
 version = "0.1.0"
 edition = "2021"
@@ -7,3 +8,6 @@ edition = "2021"
 borsh = { version = "1.6.0", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 risc0-zkvm = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = ["risc0-zkvm"]
