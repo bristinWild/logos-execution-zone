@@ -1,4 +1,5 @@
 [package]
+license = "MIT OR Apache-2.0"
 name = "lez-events-decoder"
 version = "0.1.0"
 edition = "2021"
@@ -13,3 +14,6 @@ clap = { version = "4", features = ["derive"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 borsh = { version = "1.6.0", features = ["derive"] }
+
+[package.metadata.cargo-machete]
+ignored = ["borsh", "lez-events"]

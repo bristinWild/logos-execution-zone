@@ -129,10 +129,41 @@ impl RejectedTxStore {
         self.inner.insert(tx_hash, rejected);
     }
 
+    #[must_use]
     pub fn get(&self, tx_hash: &HashType) -> Option<&RejectedTx> {
         self.inner.get(tx_hash)
     }
 }
+#[derive(Debug, Clone)]
+pub struct AttributedEventRecord {
+    pub program_id: [u32; 8],
+    pub event: lez_events::EventRecord,
+}
+/// Events from a successfully included transaction.
+#[derive(Debug, Clone)]
+pub struct IncludedTx {
+    pub events: Vec<AttributedEventRecord>,
+    pub block_id: u64,
+}
+/// In-memory store of events from included transactions.
+#[derive(Debug, Default)]
+pub struct IncludedTxStore {
+    inner: HashMap<HashType, IncludedTx>,
+}
+
+impl IncludedTxStore {
+    pub fn insert(&mut self, tx_hash: HashType, included: IncludedTx) {
+        self.inner.insert(tx_hash, included);
+    }
+
+    #[must_use]
+    pub fn get(&self, tx_hash: &HashType) -> Option<&IncludedTx> {
+        self.inner.get(tx_hash)
+    }
+}
+
+
+
 
 pub(crate) fn block_to_transactions_map(block: &Block) -> HashMap<HashType, u64> {
     block
@@ -295,32 +326,5 @@ mod tests {
     }
 }
 
-/// Events from a successfully included transaction, with program attribution.
-#[derive(Debug, Clone)]
-pub struct AttributedEventRecord {
-    pub program_id: [u32; 8],
-    pub event: lez_events::EventRecord,
-}
 
-/// Events from a successfully included transaction.
-#[derive(Debug, Clone)]
-pub struct IncludedTx {
-    pub events: Vec<AttributedEventRecord>,
-    pub block_id: u64,
-}
 
-/// In-memory store of events from included transactions.
-#[derive(Debug, Default)]
-pub struct IncludedTxStore {
-    inner: HashMap<HashType, IncludedTx>,
-}
-
-impl IncludedTxStore {
-    pub fn insert(&mut self, tx_hash: HashType, included: IncludedTx) {
-        self.inner.insert(tx_hash, included);
-    }
-
-    pub fn get(&self, tx_hash: &HashType) -> Option<&IncludedTx> {
-        self.inner.get(tx_hash)
-    }
-}

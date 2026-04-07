@@ -9,6 +9,9 @@ use crate::account::{Account, AccountId, AccountWithMetadata};
 
 pub const DEFAULT_PROGRAM_ID: ProgramId = [0; 8];
 pub const MAX_NUMBER_CHAINED_CALLS: usize = 10;
+/// Sentinel tag written to journal before events on failure path.
+/// Allows host to distinguish failure journal from success [`ProgramOutput`].
+pub const FAILURE_SENTINEL: u32 = 0xDEAD_FA11;
 
 pub type ProgramId = [u32; 8];
 pub type InstructionData = Vec<u32>;
@@ -383,6 +386,7 @@ pub fn write_nssa_outputs(
         .with_events(events)
         .write();
 }
+
 pub fn write_nssa_outputs_with_chained_call(
     instruction_data: InstructionData,
     pre_states: Vec<AccountWithMetadata>,
@@ -398,6 +402,7 @@ pub fn write_nssa_outputs_with_chained_call(
         .with_events(events)
         .write();
 }
+
 /// Validates well-behaved program execution.
 ///
 /// # Parameters
@@ -477,6 +482,7 @@ pub fn validate_execution(
     true
 }
 
+
 fn validate_uniqueness_of_account_ids(pre_states: &[AccountWithMetadata]) -> bool {
     let number_of_accounts = pre_states.len();
     let number_of_account_ids = pre_states
@@ -487,6 +493,13 @@ fn validate_uniqueness_of_account_ids(pre_states: &[AccountWithMetadata]) -> boo
 
     number_of_accounts == number_of_account_ids
 }
+pub fn write_nssa_outputs_on_failure() {
+    use risc0_zkvm::guest::env;
+    let events = lez_events::drain_events();
+    // Write sentinel + events so host can distinguish from success ProgramOutput
+    env::commit(&(FAILURE_SENTINEL, events));
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -664,24 +677,3 @@ mod tests {
     }
 }
 
-/// Call this before panicking to preserve emitted events in the journal.
-/// The sequencer will extract these events and include them in the tx receipt.
-///
-/// # Example
-/// ```ignore
-/// if balance < amount {
-///     emit_event(1, &InsufficientFunds { requested: amount, available: balance });
-///     write_nssa_outputs_on_failure();
-///     panic!("Insufficient funds");
-/// }
-/// ```
-/// Sentinel tag written to journal before events on failure path.
-/// Allows host to distinguish failure journal from success ProgramOutput.
-pub const FAILURE_SENTINEL: u32 = 0xDEAD_FA11;
-
-pub fn write_nssa_outputs_on_failure() {
-    use risc0_zkvm::guest::env;
-    let events = lez_events::drain_events();
-    // Write sentinel + events so host can distinguish from success ProgramOutput
-    env::commit(&(FAILURE_SENTINEL, events));
-}

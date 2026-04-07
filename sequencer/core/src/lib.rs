@@ -48,6 +48,10 @@ pub struct SequencerCore<
     indexer_client: IC,
 }
 
+
+
+type AttributedEvents = Vec<([u32; 8], lez_events::EventRecord)>;
+
 impl<BC: BlockSettlementClientTrait, IC: IndexerClientTrait> SequencerCore<BC, IC> {
     /// Starts the sequencer using the provided configuration.
     /// If an existing database is found, the sequencer state is loaded from it and
@@ -96,7 +100,7 @@ impl<BC: BlockSettlementClientTrait, IC: IndexerClientTrait> SequencerCore<BC, I
             .latest_block_meta()
             .expect("Failed to read latest block meta from store");
 
-        #[cfg_attr(not(feature = "testnet"), allow(unused_mut))]
+        #[cfg_attr(not(feature = "testnet"), expect(unused_mut, reason = "mut is needed in testnet feature"))]
         let mut state = if let Some(state) = store.get_nssa_state() {
             info!("Found local database. Loading state and pending blocks from it.");
             state
@@ -169,7 +173,7 @@ impl<BC: BlockSettlementClientTrait, IC: IndexerClientTrait> SequencerCore<BC, I
     fn execute_check_transaction_on_state(
         &mut self,
         tx: NSSATransaction,
-    ) -> Result<(NSSATransaction, Vec<([u32; 8], lez_events::EventRecord)>), nssa::error::NssaError> {
+    ) -> Result<(NSSATransaction, AttributedEvents), nssa::error::NssaError> {
         let events = match &tx {
             NSSATransaction::Public(t) => self
                 .state
@@ -177,11 +181,11 @@ impl<BC: BlockSettlementClientTrait, IC: IndexerClientTrait> SequencerCore<BC, I
             NSSATransaction::PrivacyPreserving(t) => self
                 .state
                 .transition_from_privacy_preserving_transaction(t, self.next_block_id())
-                .map(|_| vec![]),  // privacy-preserving txs have no attributed events
+                .map(|()| vec![]),  // privacy-preserving txs have no attributed events
             NSSATransaction::ProgramDeployment(t) => self
                 .state
                 .transition_from_program_deployment_transaction(t)
-                .map(|_| vec![]),
+                .map(|()| vec![]),
         }
         .inspect_err(|err| warn!("Error at transition {err:#?}"))?;
         Ok((tx, events))
@@ -275,7 +279,25 @@ pub fn produce_new_block_with_mempool_transactions(&mut self) -> Result<(SignedM
                             .map(|o| o.events.clone())
                             .unwrap_or_default()
                     }
-                    _ => vec![],
+                    nssa::error::NssaError::InvalidInput(_)
+                    | nssa::error::NssaError::InvalidProgramBehavior
+                    | nssa::error::NssaError::InstructionSerializationError(_)
+                    | nssa::error::NssaError::InvalidPrivateKey
+                    | nssa::error::NssaError::Io(_)
+                    | nssa::error::NssaError::InvalidPublicKey(_)
+                    | nssa::error::NssaError::ProgramWriteInputFailed(_)
+                    | nssa::error::NssaError::ProgramProveFailed(_)
+                    | nssa::error::NssaError::TransactionDeserializationError(_)
+                    | nssa::error::NssaError::Core(_)
+                    | nssa::error::NssaError::ProgramOutputDeserializationError(_)
+                    | nssa::error::NssaError::CircuitOutputDeserializationError(_)
+                    | nssa::error::NssaError::InvalidPrivacyPreservingProof
+                    | nssa::error::NssaError::CircuitProvingError(_)
+                    | nssa::error::NssaError::InvalidProgramBytecode(_)
+                    | nssa::error::NssaError::ProgramAlreadyExists
+                    | nssa::error::NssaError::MaxChainedCallsDepthExceeded
+                    | nssa::error::NssaError::MaxAccountNonceReached
+                    | nssa::error::NssaError::OutOfValidityWindow => vec![],
                 };
                 self.rejected_tx_store.insert(
                     tx_hash,
@@ -334,11 +356,11 @@ pub const fn chain_height(&self) -> u64 {
     self.chain_height
 }
 
-pub fn rejected_tx_store(&self) -> &crate::block_store::RejectedTxStore {
+pub const fn rejected_tx_store(&self) -> &crate::block_store::RejectedTxStore {
     &self.rejected_tx_store
 }
 
-pub fn included_tx_store(&self) -> &crate::block_store::IncludedTxStore {
+pub const fn included_tx_store(&self) -> &crate::block_store::IncludedTxStore {
     &self.included_tx_store
 }
 pub const fn sequencer_config(&self) -> &SequencerConfig {

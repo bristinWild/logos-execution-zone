@@ -189,16 +189,18 @@ impl<BC: BlockSettlementClientTrait + Send + 'static, IC: IndexerClientTrait + S
             let (events, block_id) = sequencer
                 .included_tx_store()
                 .get(&tx_hash)
-                .map(|inc| {
-                    let events = inc.events.iter().map(|e| AttributedEvent {
-                        program_id: e.program_id,
-                        discriminant: e.event.discriminant,
-                        sequence: e.event.sequence,
-                        payload: e.event.payload.clone(),
-                    }).collect();
-                    (events, Some(inc.block_id))
-                })
-                .unwrap_or_else(|| (vec![], None));
+                .map_or_else(
+                    || (vec![], None),
+                    |inc| {
+                        let events = inc.events.iter().map(|e| AttributedEvent {
+                            program_id: e.program_id,
+                            discriminant: e.event.discriminant,
+                            sequence: e.event.sequence,
+                            payload: e.event.payload.clone(),
+                        }).collect();
+                        (events, Some(inc.block_id))
+                    }
+                );
             return Ok(TxReceipt {
                 tx_hash,
                 status: TxStatus::Included,
@@ -211,7 +213,7 @@ impl<BC: BlockSettlementClientTrait + Send + 'static, IC: IndexerClientTrait + S
         // Check if rejected
         if let Some(rejected) = sequencer.rejected_tx_store().get(&tx_hash) {
             let events = rejected.events.iter().map(|e| AttributedEvent {
-                program_id: [0u32; 8],  // program_id attribution via host
+                program_id: [0_u32; 8],  // program_id attribution via host
                 discriminant: e.discriminant,
                 sequence: e.sequence,
                 payload: e.payload.clone(),

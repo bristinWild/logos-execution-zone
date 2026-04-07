@@ -8,12 +8,14 @@ use nssa_core::{
 };
 use sha2::{Digest as _, digest::FixedOutput as _};
 
+
 use crate::{
     V03State, ensure,
     error::NssaError,
     public_transaction::{Message, WitnessSet},
     state::MAX_NUMBER_CHAINED_CALLS,
 };
+type StateDiffWithEvents = (HashMap<AccountId, Account>, Vec<([u32; 8], lez_events::EventRecord)>);
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct PublicTransaction {
@@ -71,7 +73,7 @@ impl PublicTransaction {
         &self,
         state: &V03State,
         block_id: BlockId,
-    ) -> Result<(HashMap<AccountId, Account>, Vec<([u32; 8], lez_events::EventRecord)>), NssaError> {
+    ) -> Result<StateDiffWithEvents, NssaError> {
         let message = self.message();
         let witness_set = self.witness_set();
 

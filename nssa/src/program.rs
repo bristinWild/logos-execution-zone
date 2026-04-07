@@ -101,18 +101,17 @@ impl Program {
         match session_info.exit_code {
             ExitCode::Halted(0) => {
                 // Try success path first: decode as full ProgramOutput
-                match session_info.journal.decode::<nssa_core::program::ProgramOutput>() {
-                    Ok(output) => Ok(output),
-                    Err(_) => {
-                        // Decode failed — program may have called write_nssa_outputs_on_failure
-                        // before panicking (in dev mode panics also return Halted(0))
-                        let partial = extract_events_from_panic_journal(&session_info.journal);
-                        Err(NssaError::ProgramExecutionFailed {
-                            exit_code: 0,
-                            partial_output: partial.map(Box::new),
-                            message: "Guest panicked (dev mode)".to_string(),
-                        })
-                    }
+                if let Ok(output) = session_info.journal.decode::<nssa_core::program::ProgramOutput>() {
+                    Ok(output)
+                } else {
+                    // Decode failed — program may have called write_nssa_outputs_on_failure
+                    // before panicking (in dev mode panics also return Halted(0))
+                    let partial = extract_events_from_panic_journal(&session_info.journal);
+                    Err(NssaError::ProgramExecutionFailed {
+                        exit_code: 0,
+                        partial_output: partial.map(Box::new),
+                        message: "Guest panicked (dev mode)".to_owned(),
+                    })
                 }
             }
             ExitCode::Halted(code) => {
@@ -126,7 +125,7 @@ impl Program {
                     message: format!("Guest halted with non-zero exit code: {code}"),
                 })
             }
-            other => Err(NssaError::ProgramExecutionFailed {
+            other @ (ExitCode::Paused(_) | ExitCode::SystemSplit | ExitCode::SessionLimit | _) => Err(NssaError::ProgramExecutionFailed {
                 exit_code: 0,
                 partial_output: None,
                 message: format!("Unexpected exit code: {other:?}"),
@@ -186,6 +185,36 @@ impl Program {
     pub fn pinata_token() -> Self {
         use crate::program_methods::PINATA_TOKEN_ELF;
         Self::new(PINATA_TOKEN_ELF.to_vec()).expect("Piñata program must be a valid R0BF file")
+    }
+}
+
+
+/// Programs call `write_nssa_outputs_on_failure()` before panicking,
+/// which commits Vec<EventRecord> to the journal.
+/// We decode that here to recover events from failed transactions.
+fn extract_events_from_panic_journal(
+    journal: &risc0_zkvm::Journal,
+) -> Option<nssa_core::program::ProgramOutput> {
+    use nssa_core::program::ProgramOutput;
+    if journal.bytes.is_empty() {
+        return None;
+    }
+    // Try to decode journal as (FAILURE_SENTINEL, Vec<EventRecord>)
+    // written by write_nssa_outputs_on_failure()
+    match journal.decode::<(u32, Vec<lez_events::EventRecord>)>() {
+        Ok((sentinel, events))
+            if sentinel == nssa_core::program::FAILURE_SENTINEL =>
+        {
+            Some(ProgramOutput {
+                instruction_data: vec![],
+                pre_states: vec![],
+                post_states: vec![],
+                chained_calls: vec![],
+                events,
+                validity_window: nssa_core::program::ValidityWindow::new_unbounded(),
+            })
+        }
+        _ => None,
     }
 }
 
@@ -414,34 +443,3 @@ mod tests {
     }
 }
 
-/// Extract events from a panic journal.
-/// Programs call write_nssa_outputs_on_failure() before panicking,
-/// which commits Vec<EventRecord> to the journal.
-/// We decode that here to recover events from failed transactions.
-fn extract_events_from_panic_journal(
-    journal: &risc0_zkvm::Journal,
-) -> Option<nssa_core::program::ProgramOutput> {
-    use nssa_core::program::ProgramOutput;
-
-    if journal.bytes.is_empty() {
-        return None;
-    }
-
-    // Try to decode journal as (FAILURE_SENTINEL, Vec<EventRecord>)
-    // written by write_nssa_outputs_on_failure()
-    match journal.decode::<(u32, Vec<lez_events::EventRecord>)>() {
-        Ok((sentinel, events))
-            if sentinel == nssa_core::program::FAILURE_SENTINEL =>
-        {
-            Some(ProgramOutput {
-                instruction_data: vec![],
-                pre_states: vec![],
-                post_states: vec![],
-                chained_calls: vec![],
-                events,
-                validity_window: nssa_core::program::ValidityWindow::new_unbounded(),
-            })
-        }
-        _ => None,
-    }
-}

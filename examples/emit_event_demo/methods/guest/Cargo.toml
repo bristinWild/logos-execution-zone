@@ -1,4 +1,5 @@
 [package]
+license = "MIT OR Apache-2.0"
 name = "emit_event_demo_programs"
 version = "0.1.0"
 edition = "2021"
@@ -9,3 +10,6 @@ lez-events = { path = "../../../../lez-events" }
 risc0-zkvm.workspace = true
 borsh = { version = "1.6.0", features = ["derive"] }
 serde = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = ["risc0-zkvm"]
