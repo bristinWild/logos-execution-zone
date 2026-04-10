@@ -244,11 +244,14 @@ mod tests {
         let expected_sender_pre = sender.clone();
 
         let esk = [3; 32];
-        let shared_secret = SharedSecretKey::new(&esk, &recipient_keys.vpk());
+        let shared_secret = SharedSecretKey::new(esk, &recipient_keys.vpk());
 
         let (output, proof) = execute_and_prove(
             vec![sender, recipient],
-            Program::serialize_instruction(balance_to_move).unwrap(),
+            Program::serialize_instruction(authenticated_transfer_core::Instruction::Transfer {
+                amount: balance_to_move,
+            })
+            .unwrap(),
             vec![
                 InputAccountIdentity::Public,
                 InputAccountIdentity::PrivateUnauthorized {
@@ -338,14 +341,17 @@ mod tests {
         ];
 
         let esk_1 = [3; 32];
-        let shared_secret_1 = SharedSecretKey::new(&esk_1, &sender_keys.vpk());
+        let shared_secret_1 = SharedSecretKey::new(esk_1, &sender_keys.vpk());
 
         let esk_2 = [5; 32];
-        let shared_secret_2 = SharedSecretKey::new(&esk_2, &recipient_keys.vpk());
+        let shared_secret_2 = SharedSecretKey::new(esk_2, &recipient_keys.vpk());
 
         let (output, proof) = execute_and_prove(
             vec![sender_pre, recipient],
-            Program::serialize_instruction(balance_to_move).unwrap(),
+            Program::serialize_instruction(authenticated_transfer_core::Instruction::Transfer {
+                amount: balance_to_move,
+            })
+            .unwrap(),
             vec![
                 InputAccountIdentity::PrivateAuthorizedUpdate {
                     ssk: shared_secret_1,
@@ -413,7 +419,7 @@ mod tests {
         .unwrap();
 
         let esk = [3; 32];
-        let shared_secret = SharedSecretKey::new(&esk, &account_keys.vpk());
+        let shared_secret = SharedSecretKey::new(esk, &account_keys.vpk());
 
         let program_with_deps = ProgramWithDependencies::new(
             validity_window_chain_caller,
@@ -443,7 +449,7 @@ mod tests {
         let npk = keys.npk();
         let seed = PdaSeed::new([42; 32]);
         let identifier: u128 = 99;
-        let shared_secret = SharedSecretKey::new(&[55; 32], &keys.vpk());
+        let shared_secret = SharedSecretKey::new([55; 32], &keys.vpk());
 
         let account_id = AccountId::for_private_pda(&program.id(), &seed, &npk, identifier);
         let pre_state = AccountWithMetadata::new(Account::default(), false, account_id);
@@ -480,7 +486,7 @@ mod tests {
         let keys = test_private_account_keys_1();
         let npk = keys.npk();
         let seed = PdaSeed::new([42; 32]);
-        let shared_secret_pda = SharedSecretKey::new(&[55; 32], &keys.vpk());
+        let shared_secret_pda = SharedSecretKey::new([55; 32], &keys.vpk());
 
         // PDA (new, mask 3)
         let pda_id = AccountId::for_private_pda(&program.id(), &seed, &npk, 0);
@@ -518,7 +524,7 @@ mod tests {
         let keys = test_private_account_keys_1();
         let npk = keys.npk();
         let seed = PdaSeed::new([42; 32]);
-        let shared_secret_pda = SharedSecretKey::new(&[55; 32], &keys.vpk());
+        let shared_secret_pda = SharedSecretKey::new([55; 32], &keys.vpk());
 
         // PDA (new, private PDA)
         let pda_id = AccountId::for_private_pda(&program.id(), &seed, &npk, 0);
@@ -572,7 +578,7 @@ mod tests {
         let shared_keys = test_private_account_keys_1();
         let shared_npk = shared_keys.npk();
         let shared_identifier: u128 = 42;
-        let shared_secret = SharedSecretKey::new(&[55; 32], &shared_keys.vpk());
+        let shared_secret = SharedSecretKey::new([55; 32], &shared_keys.vpk());
 
         // Sender: public account with balance, owned by auth-transfer
         let sender_id = AccountId::new([99; 32]);
@@ -619,7 +625,7 @@ mod tests {
         let program = Program::authenticated_transfer_program();
         let keys = test_private_account_keys_1();
         let identifier: u128 = 99;
-        let ssk = SharedSecretKey::new(&[55; 32], &keys.vpk());
+        let ssk = SharedSecretKey::new([55; 32], &keys.vpk());
         let account_id = AccountId::for_regular_private_account(&keys.npk(), identifier);
         let pre = AccountWithMetadata::new(Account::default(), true, account_id);
 
@@ -648,7 +654,7 @@ mod tests {
         let program = Program::authenticated_transfer_program();
         let keys = test_private_account_keys_1();
         let identifier: u128 = 99;
-        let ssk = SharedSecretKey::new(&[55; 32], &keys.vpk());
+        let ssk = SharedSecretKey::new([55; 32], &keys.vpk());
 
         let sender = AccountWithMetadata::new(
             Account {
@@ -690,7 +696,7 @@ mod tests {
         let program = Program::authenticated_transfer_program();
         let keys = test_private_account_keys_1();
         let identifier: u128 = 99;
-        let ssk = SharedSecretKey::new(&[55; 32], &keys.vpk());
+        let ssk = SharedSecretKey::new([55; 32], &keys.vpk());
         let account_id = AccountId::for_regular_private_account(&keys.npk(), identifier);
         let account = Account {
             program_owner: program.id(),
@@ -736,7 +742,7 @@ mod tests {
         let npk = keys.npk();
         let seed = PdaSeed::new([42; 32]);
         let identifier: u128 = 99;
-        let ssk = SharedSecretKey::new(&[55; 32], &keys.vpk());
+        let ssk = SharedSecretKey::new([55; 32], &keys.vpk());
 
         let auth_transfer_id = auth_transfer.id();
         let pda_id = AccountId::for_private_pda(&program.id(), &seed, &npk, identifier);
@@ -790,7 +796,7 @@ mod tests {
         let keys = test_private_account_keys_1();
         let npk = keys.npk();
         let seed = PdaSeed::new([42; 32]);
-        let shared_secret = SharedSecretKey::new(&[55; 32], &keys.vpk());
+        let shared_secret = SharedSecretKey::new([55; 32], &keys.vpk());
 
         let account_id = AccountId::for_private_pda(&program.id(), &seed, &npk, 5);
         let pre_state = AccountWithMetadata::new(Account::default(), false, account_id);
@@ -816,7 +822,7 @@ mod tests {
         let keys = test_private_account_keys_1();
         let npk = keys.npk();
         let seed = PdaSeed::new([42; 32]);
-        let ssk = SharedSecretKey::new(&[55; 32], &keys.vpk());
+        let ssk = SharedSecretKey::new([55; 32], &keys.vpk());
 
         let auth_transfer_id = auth_transfer.id();
         let pda_id = AccountId::for_private_pda(&program.id(), &seed, &npk, 5);

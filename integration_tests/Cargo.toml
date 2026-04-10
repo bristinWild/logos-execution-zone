@@ -10,6 +10,7 @@ workspace = true
 [dependencies]
 nssa_core = { workspace = true, features = ["host"] }
 nssa.workspace = true
+authenticated_transfer_core.workspace = true
 sequencer_core = { workspace = true, features = ["default", "testnet"] }
 sequencer_service.workspace = true
 wallet.workspace = true
@@ -28,7 +29,6 @@ testnet_initial_state.workspace = true
 indexer_service_protocol.workspace = true
 
 url.workspace = true
-
 anyhow.workspace = true
 env_logger.workspace = true
 log.workspace = true

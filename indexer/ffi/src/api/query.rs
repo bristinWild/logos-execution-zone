@@ -2,7 +2,7 @@ use indexer_service_protocol::{AccountId, HashType};
 use indexer_service_rpc::RpcClient as _;
 
 use crate::{
-    IndexerServiceFFI,
+    IndexerServiceFFI, Runtime,
     api::{
         PointerResult,
         types::{
@@ -19,20 +19,22 @@ use crate::{
 ///
 /// # Arguments
 ///
-/// - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+/// - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
 ///
 /// # Returns
 ///
-/// A `PointerResult<u64, OperationStatus>` indicating success or failure.
+/// A `PointerResult<Option<u64>, OperationStatus>` indicating success or failure.
 ///
 /// # Safety
 ///
 /// The caller must ensure that:
-/// - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+/// - `runtime` is a valid pointer to a [`Runtime`] instance.
+/// - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn query_last_block(
+    runtime: *const Runtime,
     indexer: *const IndexerServiceFFI,
-) -> PointerResult<u64, OperationStatus> {
+) -> PointerResult<Option<u64>, OperationStatus> {
     if indexer.is_null() {
         log::error!("Attempted to query a null indexer pointer. This is a bug. Aborting.");
         return PointerResult::from_error(OperationStatus::NullPointer);
@@ -40,8 +42,8 @@ pub unsafe extern "C" fn query_last_block(
 
     let indexer = unsafe { &*indexer };
 
-    let client = unsafe { indexer.client() };
-    let runtime = unsafe { indexer.runtime() };
+    let client = indexer.client();
+    let runtime = unsafe { &*runtime };
 
     runtime
         .block_on(client.get_last_finalized_block_id())
@@ -55,7 +57,7 @@ pub unsafe extern "C" fn query_last_block(
 ///
 /// # Arguments
 ///
-/// - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+/// - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
 /// - `block_id`: `u64` number of block id
 ///
 /// # Returns
@@ -65,9 +67,11 @@ pub unsafe extern "C" fn query_last_block(
 /// # Safety
 ///
 /// The caller must ensure that:
-/// - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+/// - `runtime` is a valid pointer to a [`Runtime`] instance.
+/// - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn query_block(
+    runtime: *const Runtime,
     indexer: *const IndexerServiceFFI,
     block_id: FfiBlockId,
 ) -> PointerResult<FfiBlockOpt, OperationStatus> {
@@ -78,8 +82,8 @@ pub unsafe extern "C" fn query_block(
 
     let indexer = unsafe { &*indexer };
 
-    let client = unsafe { indexer.client() };
-    let runtime = unsafe { indexer.runtime() };
+    let client = indexer.client();
+    let runtime = unsafe { &*runtime };
 
     runtime
         .block_on(client.get_block_by_id(block_id))
@@ -99,7 +103,7 @@ pub unsafe extern "C" fn query_block(
 ///
 /// # Arguments
 ///
-/// - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+/// - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
 /// - `hash`: `FfiHashType` - hash of block
 ///
 /// # Returns
@@ -109,9 +113,11 @@ pub unsafe extern "C" fn query_block(
 /// # Safety
 ///
 /// The caller must ensure that:
-/// - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+/// - `runtime` is a valid pointer to a [`Runtime`] instance.
+/// - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn query_block_by_hash(
+    runtime: *const Runtime,
     indexer: *const IndexerServiceFFI,
     hash: FfiHashType,
 ) -> PointerResult<FfiBlockOpt, OperationStatus> {
@@ -122,8 +128,8 @@ pub unsafe extern "C" fn query_block_by_hash(
 
     let indexer = unsafe { &*indexer };
 
-    let client = unsafe { indexer.client() };
-    let runtime = unsafe { indexer.runtime() };
+    let client = indexer.client();
+    let runtime = unsafe { &*runtime };
 
     runtime
         .block_on(client.get_block_by_hash(HashType(hash.data)))
@@ -143,7 +149,7 @@ pub unsafe extern "C" fn query_block_by_hash(
 ///
 /// # Arguments
 ///
-/// - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+/// - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
 /// - `account_id`: `FfiAccountId` - id of queried account
 ///
 /// # Returns
@@ -153,9 +159,11 @@ pub unsafe extern "C" fn query_block_by_hash(
 /// # Safety
 ///
 /// The caller must ensure that:
-/// - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+/// - `runtime` is a valid pointer to a [`Runtime`] instance.
+/// - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn query_account(
+    runtime: *const Runtime,
     indexer: *const IndexerServiceFFI,
     account_id: FfiAccountId,
 ) -> PointerResult<FfiAccount, OperationStatus> {
@@ -166,8 +174,8 @@ pub unsafe extern "C" fn query_account(
 
     let indexer = unsafe { &*indexer };
 
-    let client = unsafe { indexer.client() };
-    let runtime = unsafe { indexer.runtime() };
+    let client = indexer.client();
+    let runtime = unsafe { &*runtime };
 
     runtime
         .block_on(client.get_account(AccountId {
@@ -187,7 +195,7 @@ pub unsafe extern "C" fn query_account(
 ///
 /// # Arguments
 ///
-/// - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+/// - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
 /// - `hash`: `FfiHashType` - hash of transaction
 ///
 /// # Returns
@@ -197,9 +205,11 @@ pub unsafe extern "C" fn query_account(
 /// # Safety
 ///
 /// The caller must ensure that:
-/// - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+/// - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
+/// - `runtime` is a valid pointer to a [`Runtime`] instance.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn query_transaction(
+    runtime: *const Runtime,
     indexer: *const IndexerServiceFFI,
     hash: FfiHashType,
 ) -> PointerResult<FfiOption<FfiTransaction>, OperationStatus> {
@@ -210,8 +220,8 @@ pub unsafe extern "C" fn query_transaction(
 
     let indexer = unsafe { &*indexer };
 
-    let client = unsafe { indexer.client() };
-    let runtime = unsafe { indexer.runtime() };
+    let client = indexer.client();
+    let runtime = unsafe { &*runtime };
 
     runtime
         .block_on(client.get_transaction(HashType(hash.data)))
@@ -231,7 +241,7 @@ pub unsafe extern "C" fn query_transaction(
 ///
 /// # Arguments
 ///
-/// - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+/// - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
 /// - `before`: `FfiOption<u64>` - end block of query
 /// - `limit`: `u64` - number of blocks to query before `before`
 ///
@@ -242,9 +252,11 @@ pub unsafe extern "C" fn query_transaction(
 /// # Safety
 ///
 /// The caller must ensure that:
-/// - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+/// - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
+/// - `runtime` is a valid pointer to a [`Runtime`] instance.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn query_block_vec(
+    runtime: *const Runtime,
     indexer: *const IndexerServiceFFI,
     before: FfiOption<u64>,
     limit: u64,
@@ -256,8 +268,8 @@ pub unsafe extern "C" fn query_block_vec(
 
     let indexer = unsafe { &*indexer };
 
-    let client = unsafe { indexer.client() };
-    let runtime = unsafe { indexer.runtime() };
+    let client = indexer.client();
+    let runtime = unsafe { &*runtime };
 
     let before_std = before.is_some.then(|| unsafe { *before.value });
 
@@ -281,7 +293,7 @@ pub unsafe extern "C" fn query_block_vec(
 ///
 /// # Arguments
 ///
-/// - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+/// - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
 /// - `account_id`: `FfiAccountId` - id of queried account
 /// - `offset`: `u64` - first tx id of query
 /// - `limit`: `u64` - number of tx ids to query after `offset`
@@ -293,9 +305,11 @@ pub unsafe extern "C" fn query_block_vec(
 /// # Safety
 ///
 /// The caller must ensure that:
-/// - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+/// - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
+/// - `runtime` is a valid pointer to a [`Runtime`] instance.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn query_transactions_by_account(
+    runtime: *const Runtime,
     indexer: *const IndexerServiceFFI,
     account_id: FfiAccountId,
     offset: u64,
@@ -308,8 +322,8 @@ pub unsafe extern "C" fn query_transactions_by_account(
 
     let indexer = unsafe { &*indexer };
 
-    let client = unsafe { indexer.client() };
-    let runtime = unsafe { indexer.runtime() };
+    let client = indexer.client();
+    let runtime = unsafe { &*runtime };
 
     runtime
         .block_on(client.get_transactions_by_account(

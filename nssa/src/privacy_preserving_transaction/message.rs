@@ -251,7 +251,7 @@ pub mod tests {
         let account_id = nssa_core::account::AccountId::for_regular_private_account(&npk, 0);
         let commitment = Commitment::new(&account_id, &account);
         let esk = [3; 32];
-        let shared_secret = SharedSecretKey::new(&esk, &vpk);
+        let shared_secret = SharedSecretKey::new(esk, &vpk);
         let epk = EphemeralPublicKey::from_scalar(esk);
         let ciphertext = EncryptionScheme::encrypt(
             &account,

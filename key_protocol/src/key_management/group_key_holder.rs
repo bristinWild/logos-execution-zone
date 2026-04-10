@@ -59,7 +59,7 @@ pub type SealingSecretKey = Scalar;
 /// `Debug` is implemented manually to redact the GMS; formatting this value with `{:?}`
 /// will not leak the secret. Code that formats through `{:#?}` on containing types is
 /// safe for the same reason.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GroupKeyHolder {
     gms: [u8; 32],
 }
@@ -164,7 +164,7 @@ impl GroupKeyHolder {
         let mut ephemeral_scalar: Scalar = [0_u8; 32];
         OsRng.fill_bytes(&mut ephemeral_scalar);
         let ephemeral_pubkey = Secp256k1Point::from_scalar(ephemeral_scalar);
-        let shared = SharedSecretKey::new(&ephemeral_scalar, &recipient_key.0);
+        let shared = SharedSecretKey::new(ephemeral_scalar, &recipient_key.0);
         let aes_key = Self::seal_kdf(&shared);
         let cipher = Aes256Gcm::new(&aes_key.into());
 
@@ -191,7 +191,7 @@ impl GroupKeyHolder {
     ///
     /// Returns `Err` if the ciphertext is too short, the ECDH point is invalid, or the
     /// AES-GCM authentication tag doesn't verify (wrong key or tampered data).
-    pub fn unseal(sealed: &[u8], own_key: &SealingSecretKey) -> Result<Self, SealError> {
+    pub fn unseal(sealed: &[u8], own_key: SealingSecretKey) -> Result<Self, SealError> {
         const HEADER_LEN: usize = 33 + 12;
         const MIN_LEN: usize = HEADER_LEN + 16;
         if sealed.len() < MIN_LEN {
@@ -408,7 +408,7 @@ mod tests {
         let recipient_vsk = recipient_keys.viewing_secret_key;
 
         let sealed = holder.seal_for(&SealingPublicKey::from_bytes(recipient_vpk.0));
-        let restored = GroupKeyHolder::unseal(&sealed, &recipient_vsk).expect("unseal");
+        let restored = GroupKeyHolder::unseal(&sealed, recipient_vsk).expect("unseal");
 
         assert_eq!(restored.dangerous_raw_gms(), holder.dangerous_raw_gms());
 
@@ -439,7 +439,7 @@ mod tests {
             .viewing_secret_key;
 
         let sealed = holder.seal_for(&SealingPublicKey::from_bytes(recipient_vpk.0));
-        let result = GroupKeyHolder::unseal(&sealed, &wrong_vsk);
+        let result = GroupKeyHolder::unseal(&sealed, wrong_vsk);
         assert!(matches!(result, Err(super::SealError::DecryptionFailed)));
     }
 
@@ -458,7 +458,7 @@ mod tests {
         let last = sealed.len() - 1;
         sealed[last] ^= 0xFF;
 
-        let result = GroupKeyHolder::unseal(&sealed, &recipient_vsk);
+        let result = GroupKeyHolder::unseal(&sealed, recipient_vsk);
         assert!(matches!(result, Err(super::SealError::DecryptionFailed)));
     }
 
@@ -482,7 +482,7 @@ mod tests {
     #[test]
     fn unseal_too_short_fails() {
         let vsk: SealingSecretKey = [7_u8; 32];
-        let result = GroupKeyHolder::unseal(&[0_u8; 10], &vsk);
+        let result = GroupKeyHolder::unseal(&[0_u8; 10], vsk);
         assert!(matches!(result, Err(super::SealError::TooShort)));
     }
 
@@ -538,7 +538,7 @@ mod tests {
 
         let sealed = alice_holder.seal_for(&SealingPublicKey::from_bytes(bob_vpk.0));
         let bob_holder =
-            GroupKeyHolder::unseal(&sealed, &bob_vsk).expect("Bob should unseal the GMS");
+            GroupKeyHolder::unseal(&sealed, bob_vsk).expect("Bob should unseal the GMS");
 
         // Key agreement: both derive identical NPK and AccountId
         let bob_npk = bob_holder

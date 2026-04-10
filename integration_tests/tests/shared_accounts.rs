@@ -18,14 +18,19 @@
 use std::time::Duration;
 
 use anyhow::{Context as _, Result};
-use integration_tests::{TIME_TO_WAIT_FOR_BLOCK_SECONDS, TestContext, format_public_account_id};
+use integration_tests::{
+    TIME_TO_WAIT_FOR_BLOCK_SECONDS, TestContext, private_mention, public_mention,
+};
 use log::info;
 use tokio::test;
-use wallet::cli::{
-    Command, SubcommandReturnValue,
-    account::{AccountSubcommand, NewSubcommand},
-    group::GroupSubcommand,
-    programs::native_token_transfer::AuthTransferSubcommand,
+use wallet::{
+    account::Label,
+    cli::{
+        Command, SubcommandReturnValue,
+        account::{AccountSubcommand, NewSubcommand},
+        group::GroupSubcommand,
+        programs::native_token_transfer::AuthTransferSubcommand,
+    },
 };
 
 /// Create a group, create a shared account from it, and verify registration.
@@ -43,8 +48,8 @@ async fn group_create_and_shared_account_registration() -> Result<()> {
     assert!(
         ctx.wallet()
             .storage()
-            .user_data
-            .group_key_holder("test-group")
+            .key_chain()
+            .group_key_holder(&Label::new("test-group"))
             .is_some()
     );
 
@@ -70,10 +75,10 @@ async fn group_create_and_shared_account_registration() -> Result<()> {
     let entry = ctx
         .wallet()
         .storage()
-        .user_data
-        .shared_private_account(&shared_account_id)
+        .key_chain()
+        .shared_private_account(shared_account_id)
         .context("Shared account not found in storage")?;
-    assert_eq!(entry.group_label, "test-group");
+    assert_eq!(entry.group_label, Label::new("test-group"));
     assert!(entry.pda_seed.is_none());
 
     info!("Shared account registered: {shared_account_id}");
@@ -99,8 +104,8 @@ async fn group_invite_join_key_agreement() -> Result<()> {
     let sealing_sk = ctx
         .wallet()
         .storage()
-        .user_data
-        .sealing_secret_key
+        .key_chain()
+        .sealing_secret_key()
         .context("Sealing key not found")?;
     let sealing_pk =
         key_protocol::key_management::group_key_holder::SealingPublicKey::from_scalar(sealing_sk);
@@ -108,8 +113,8 @@ async fn group_invite_join_key_agreement() -> Result<()> {
     let holder = ctx
         .wallet()
         .storage()
-        .user_data
-        .group_key_holder("alice-group")
+        .key_chain()
+        .group_key_holder(&Label::new("alice-group"))
         .context("Group not found")?;
     let sealed = holder.seal_for(&sealing_pk);
     let sealed_hex = hex::encode(&sealed);
@@ -125,14 +130,14 @@ async fn group_invite_join_key_agreement() -> Result<()> {
     let alice_holder = ctx
         .wallet()
         .storage()
-        .user_data
-        .group_key_holder("alice-group")
+        .key_chain()
+        .group_key_holder(&Label::new("alice-group"))
         .unwrap();
     let bob_holder = ctx
         .wallet()
         .storage()
-        .user_data
-        .group_key_holder("bob-copy")
+        .key_chain()
+        .group_key_holder(&Label::new("bob-copy"))
         .unwrap();
 
     let seed = [42_u8; 32];
@@ -182,8 +187,7 @@ async fn fund_shared_account_from_public() -> Result<()> {
 
     // Initialize the shared account under auth-transfer
     let command = Command::AuthTransfer(AuthTransferSubcommand::Init {
-        account_id: Some(format!("Private/{shared_id}")),
-        account_label: None,
+        account_id: private_mention(shared_id),
     });
     wallet::cli::execute_subcommand(ctx.wallet_mut(), command).await?;
 
@@ -196,10 +200,8 @@ async fn fund_shared_account_from_public() -> Result<()> {
     // Fund from a public account
     let from_public = ctx.existing_public_accounts()[0];
     let command = Command::AuthTransfer(AuthTransferSubcommand::Send {
-        from: Some(format_public_account_id(from_public)),
-        from_label: None,
-        to: Some(format!("Private/{shared_id}")),
-        to_label: None,
+        from: public_mention(from_public),
+        to: Some(private_mention(shared_id)),
         to_npk: None,
         to_vpk: None,
         to_identifier: None,
@@ -217,8 +219,8 @@ async fn fund_shared_account_from_public() -> Result<()> {
     let entry = ctx
         .wallet()
         .storage()
-        .user_data
-        .shared_private_account(&shared_id)
+        .key_chain()
+        .shared_private_account(shared_id)
         .context("Shared account not found after sync")?;
 
     info!(
