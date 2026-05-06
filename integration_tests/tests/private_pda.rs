@@ -12,7 +12,7 @@ use integration_tests::{
 };
 use log::info;
 use nssa::{
-    AccountId,
+    AccountId, ProgramId,
     privacy_preserving_transaction::circuit::ProgramWithDependencies,
     program::Program,
 };
@@ -21,10 +21,11 @@ use tokio::test;
 use wallet::{PrivacyPreservingAccount, WalletCore};
 use wallet::cli::{Command, account::AccountSubcommand};
 
-/// Funds a private PDA via auth_transfer directly (no proxy).
+/// Funds a private PDA via the proxy program with a chained call to auth_transfer.
 ///
-/// The PDA is foreign: the wallet knows its account_id/npk/vpk but not the nsk.
-/// auth_transfer claims the uninitialized PDA with Claim::Authorized on the first receive.
+/// A direct call to auth_transfer cannot establish the PDA-to-npk binding because it uses
+/// `Claim::Authorized` rather than `Claim::Pda`. Routing through the proxy provides the binding
+/// via `pda_seeds` in the chained call to auth_transfer.
 async fn fund_private_pda(
     wallet: &WalletCore,
     sender: AccountId,
@@ -32,8 +33,10 @@ async fn fund_private_pda(
     npk: NullifierPublicKey,
     vpk: ViewingPublicKey,
     identifier: u128,
+    seed: PdaSeed,
     amount: u128,
-    auth_transfer: &ProgramWithDependencies,
+    proxy_program: &ProgramWithDependencies,
+    auth_transfer_id: ProgramId,
 ) -> Result<()> {
     wallet
         .send_privacy_preserving_tx(
@@ -46,9 +49,9 @@ async fn fund_private_pda(
                     identifier,
                 },
             ],
-            Program::serialize_instruction(amount)
-                .context("failed to serialize auth_transfer instruction")?,
-            auth_transfer,
+            Program::serialize_instruction((seed, amount, auth_transfer_id, true))
+                .context("failed to serialize auth_transfer_proxy fund instruction")?,
+            proxy_program,
         )
         .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -78,7 +81,7 @@ async fn spend_private_pda(
                     identifier: 0,
                 },
             ],
-            Program::serialize_instruction((seed, amount, auth_transfer_id))
+            Program::serialize_instruction((seed, amount, auth_transfer_id, false))
                 .context("failed to serialize auth_transfer_proxy instruction")?,
             spend_program,
         )
@@ -124,7 +127,6 @@ async fn private_pda_family_members_receive_and_spend() -> Result<()> {
     let seed = PdaSeed::new([42; 32]);
     let amount: u128 = 100;
 
-    let auth_transfer_program = ProgramWithDependencies::new(auth_transfer.clone(), [].into());
     let spend_program =
         ProgramWithDependencies::new(proxy, [(auth_transfer_id, auth_transfer)].into());
 
@@ -146,8 +148,10 @@ async fn private_pda_family_members_receive_and_spend() -> Result<()> {
         alice_npk,
         alice_vpk.clone(),
         0,
+        seed,
         amount,
-        &auth_transfer_program,
+        &spend_program,
+        auth_transfer_id,
     )
     .await?;
 
@@ -159,8 +163,10 @@ async fn private_pda_family_members_receive_and_spend() -> Result<()> {
         alice_npk,
         alice_vpk.clone(),
         1,
+        seed,
         amount,
-        &auth_transfer_program,
+        &spend_program,
+        auth_transfer_id,
     )
     .await?;
 
