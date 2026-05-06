@@ -1,21 +1,25 @@
 use nssa_core::program::{
-    AccountPostState, ChainedCall, Claim, PdaSeed, ProgramId, ProgramInput, ProgramOutput,
+    AccountPostState, ChainedCall, PdaSeed, ProgramId, ProgramInput, ProgramOutput,
     read_nssa_inputs,
 };
 
-/// Single program for group PDA operations. Owns and operates the PDA directly.
+/// PDA authorization program that delegates balance operations to `authenticated_transfer`.
 ///
-/// Instruction: `(pda_seed, noop_program_id, amount, is_deposit)`.
-/// Pre-states: `[group_pda, counterparty]`.
+/// The PDA is owned by `authenticated_transfer`, not by this program. This program's role
+/// is solely to provide PDA authorization via `pda_seeds` in chained calls.
 ///
-/// **Deposit** (`is_deposit = true`, new PDA):
-/// Claims PDA via `Claim::Pda(seed)`, increases PDA balance, decreases counterparty.
-/// Counterparty must be authorized and owned by this program (or uninitialized).
+/// Instruction: `(pda_seed, auth_transfer_id, amount, is_withdraw)`.
 ///
-/// **Spend** (`is_deposit = false`, existing PDA):
-/// Decreases PDA balance (this program owns it), increases counterparty.
-/// Chains to a noop callee with `pda_seeds` to establish the mask-3 binding
-/// that the circuit requires for existing private PDAs.
+/// **Init** (`is_withdraw = false`, 1 pre-state `[pda]`):
+/// Chains to `authenticated_transfer` with `instruction=0` (init path) and `pda_seeds=[seed]`
+/// to initialize the PDA under `authenticated_transfer`'s ownership.
+///
+/// **Withdraw** (`is_withdraw = true`, 2 pre-states `[pda, recipient]`):
+/// Chains to `authenticated_transfer` with the amount and `pda_seeds=[seed]` to authorize
+/// the PDA for a balance transfer. The actual balance modification happens in
+/// `authenticated_transfer`, not here.
+///
+/// **Deposit**: done directly via `authenticated_transfer` (no need for this program).
 type Instruction = (PdaSeed, ProgramId, u128, bool);
 
 #[expect(
@@ -32,77 +36,52 @@ fn main() {
             self_program_id,
             caller_program_id,
             pre_states,
-            instruction: (pda_seed, noop_id, amount, is_deposit),
+            instruction: (pda_seed, auth_transfer_id, amount, is_withdraw),
         },
         instruction_words,
     ) = read_nssa_inputs::<Instruction>();
 
-    let Ok([pda_pre, counterparty_pre]) = <[_; 2]>::try_from(pre_states.clone()) else {
-        panic!("expected exactly 2 pre_states: [group_pda, counterparty]");
-    };
+    if is_withdraw {
+        let Ok([pda_pre, recipient_pre]) = <[_; 2]>::try_from(pre_states.clone()) else {
+            panic!("expected exactly 2 pre_states for withdraw: [pda, recipient]");
+        };
 
-    if is_deposit {
-        // Deposit: claim PDA, transfer balance from counterparty to PDA.
-        // Both accounts must be owned by this program (or uninitialized) for
-        // validate_execution to allow balance changes.
-        assert!(
-            counterparty_pre.is_authorized,
-            "Counterparty must be authorized to deposit"
-        );
+        // Post-states stay unchanged in this program. The actual balance transfer
+        // happens in the chained call to authenticated_transfer.
+        let pda_post = AccountPostState::new(pda_pre.account.clone());
+        let recipient_post = AccountPostState::new(recipient_pre.account.clone());
 
-        let mut pda_account = pda_pre.account;
-        let mut counterparty_account = counterparty_pre.account;
-
-        pda_account.balance = pda_account
-            .balance
-            .checked_add(amount)
-            .expect("PDA balance overflow");
-        counterparty_account.balance = counterparty_account
-            .balance
-            .checked_sub(amount)
-            .expect("Counterparty has insufficient balance");
-
-        let pda_post = AccountPostState::new_claimed_if_default(pda_account, Claim::Pda(pda_seed));
-        let counterparty_post = AccountPostState::new(counterparty_account);
+        // Chain to authenticated_transfer with pda_seeds to authorize the PDA.
+        // The circuit's resolve_authorization_and_record_bindings establishes the
+        // mask-3 (seed, npk) binding when pda_seeds match the private PDA derivation.
+        let mut auth_pda_pre = pda_pre;
+        auth_pda_pre.is_authorized = true;
+        let auth_call =
+            ChainedCall::new(auth_transfer_id, vec![auth_pda_pre, recipient_pre], &amount)
+                .with_pda_seeds(vec![pda_seed]);
 
         ProgramOutput::new(
             self_program_id,
             caller_program_id,
             instruction_words,
             pre_states,
-            vec![pda_post, counterparty_post],
+            vec![pda_post, recipient_post],
         )
+        .with_chained_calls(vec![auth_call])
         .write();
     } else {
-        // Spend: decrease PDA balance (owned by this program), increase counterparty.
-        // Chain to noop with pda_seeds to establish the mask-3 binding for the
-        // existing PDA. The noop's pre_states must match our post_states.
-        // Authorization is enforced by the circuit's binding check, not here.
+        // Init: initialize the PDA under authenticated_transfer's ownership.
+        let Ok([pda_pre]) = <[_; 1]>::try_from(pre_states.clone()) else {
+            panic!("expected exactly 1 pre_state for init: [pda]");
+        };
 
-        let mut pda_account = pda_pre.account.clone();
-        let mut counterparty_account = counterparty_pre.account.clone();
+        let pda_post = AccountPostState::new(pda_pre.account.clone());
 
-        pda_account.balance = pda_account
-            .balance
-            .checked_sub(amount)
-            .expect("PDA has insufficient balance");
-        counterparty_account.balance = counterparty_account
-            .balance
-            .checked_add(amount)
-            .expect("Counterparty balance overflow");
-
-        let pda_post = AccountPostState::new(pda_account.clone());
-        let counterparty_post = AccountPostState::new(counterparty_account.clone());
-
-        // Chain to noop solely to establish the mask-3 binding via pda_seeds.
-        let mut noop_pda_pre = pda_pre;
-        noop_pda_pre.account = pda_account;
-        noop_pda_pre.is_authorized = true;
-
-        let mut noop_counterparty_pre = counterparty_pre;
-        noop_counterparty_pre.account = counterparty_account;
-
-        let noop_call = ChainedCall::new(noop_id, vec![noop_pda_pre, noop_counterparty_pre], &())
+        // Chain to authenticated_transfer with instruction=0 (init path) and pda_seeds
+        // to authorize the PDA. authenticated_transfer will claim it with Claim::Authorized.
+        let mut auth_pda_pre = pda_pre;
+        auth_pda_pre.is_authorized = true;
+        let auth_call = ChainedCall::new(auth_transfer_id, vec![auth_pda_pre], &0_u128)
             .with_pda_seeds(vec![pda_seed]);
 
         ProgramOutput::new(
@@ -110,9 +89,9 @@ fn main() {
             caller_program_id,
             instruction_words,
             pre_states,
-            vec![pda_post, counterparty_post],
+            vec![pda_post],
         )
-        .with_chained_calls(vec![noop_call])
+        .with_chained_calls(vec![auth_call])
         .write();
     }
 }
