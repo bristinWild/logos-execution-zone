@@ -402,7 +402,11 @@ impl ExecutionState {
                 .expect("Account from pre states should exist in state diff");
             (pre, post)
         });
-        (block_validity_window, timestamp_validity_window, states_iter)
+        (
+            block_validity_window,
+            timestamp_validity_window,
+            states_iter,
+        )
     }
 }
 

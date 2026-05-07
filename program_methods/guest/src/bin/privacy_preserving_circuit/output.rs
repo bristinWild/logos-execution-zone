@@ -14,7 +14,7 @@ use super::ExecutionState;
 // truth, do not redefine in another module.
 const PRIVATE_PDA_FIXED_IDENTIFIER: Identifier = u128::MAX;
 
-pub(super) fn compute_circuit_output(
+pub fn compute_circuit_output(
     execution_state: ExecutionState,
     account_identities: &[InputAccountIdentity],
 ) -> PrivacyPreservingCircuitOutput {
