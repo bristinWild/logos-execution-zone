@@ -12,14 +12,15 @@ use integration_tests::{
 };
 use log::info;
 use nssa::{
-    AccountId, ProgramId,
-    privacy_preserving_transaction::circuit::ProgramWithDependencies,
+    AccountId, ProgramId, privacy_preserving_transaction::circuit::ProgramWithDependencies,
     program::Program,
 };
 use nssa_core::{NullifierPublicKey, encryption::ViewingPublicKey, program::PdaSeed};
 use tokio::test;
-use wallet::{PrivacyPreservingAccount, WalletCore};
-use wallet::cli::{Command, account::AccountSubcommand};
+use wallet::{
+    PrivacyPreservingAccount, WalletCore,
+    cli::{Command, account::AccountSubcommand},
+};
 
 /// Funds a private PDA via the proxy program with a chained call to auth_transfer.
 ///
@@ -211,7 +212,10 @@ async fn private_pda_family_members_receive_and_spend() -> Result<()> {
         verify_commitment_is_in_state(commitment_1.clone(), ctx.sequencer_client()).await,
         "alice_pda_1 commitment not in state after receive"
     );
-    assert_ne!(commitment_0, commitment_1, "distinct identifiers must yield distinct commitments");
+    assert_ne!(
+        commitment_0, commitment_1,
+        "distinct identifiers must yield distinct commitments"
+    );
 
     // ── Spend ─────────────────────────────────────────────────────────────────────────────────────
 

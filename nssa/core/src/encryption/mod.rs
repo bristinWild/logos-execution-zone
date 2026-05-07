@@ -8,11 +8,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "host")]
 pub use shared_key_derivation::{EphemeralPublicKey, EphemeralSecretKey, ViewingPublicKey};
 
-use crate::{
-    Commitment,
-    account::Account,
-    program::PrivateAccountKind,
-};
+use crate::{Commitment, account::Account, program::PrivateAccountKind};
 #[cfg(feature = "host")]
 pub mod shared_key_derivation;
 
@@ -126,7 +122,10 @@ impl EncryptionScheme {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{account::{Account, AccountId}, program::PdaSeed};
+    use crate::{
+        account::{Account, AccountId},
+        program::PdaSeed,
+    };
 
     #[test]
     fn encrypt_same_length_for_account_and_pda() {

@@ -84,7 +84,11 @@ impl PrivateAccountKind {
                 bytes[1..17].copy_from_slice(&identifier.to_le_bytes());
                 // bytes[17..81] are zero padding
             }
-            Self::Pda { program_id, seed, identifier } => {
+            Self::Pda {
+                program_id,
+                seed,
+                identifier,
+            } => {
                 bytes[0] = 0x01;
                 for (i, &word) in program_id.iter().enumerate() {
                     bytes[1 + i * 4..1 + (i + 1) * 4].copy_from_slice(&word.to_le_bytes());
@@ -107,13 +111,16 @@ impl PrivateAccountKind {
             0x01 => {
                 let mut program_id = [0u32; 8];
                 for (i, word) in program_id.iter_mut().enumerate() {
-                    *word = u32::from_le_bytes(
-                        bytes[1 + i * 4..1 + (i + 1) * 4].try_into().unwrap(),
-                    );
+                    *word =
+                        u32::from_le_bytes(bytes[1 + i * 4..1 + (i + 1) * 4].try_into().unwrap());
                 }
                 let seed = PdaSeed::new(bytes[33..65].try_into().unwrap());
                 let identifier = Identifier::from_le_bytes(bytes[65..81].try_into().unwrap());
-                Some(Self::Pda { program_id, seed, identifier })
+                Some(Self::Pda {
+                    program_id,
+                    seed,
+                    identifier,
+                })
             }
             _ => None,
         }
@@ -180,9 +187,11 @@ impl AccountId {
     pub fn for_private_account(npk: &NullifierPublicKey, kind: &PrivateAccountKind) -> Self {
         match kind {
             PrivateAccountKind::Regular(identifier) => Self::from((npk, *identifier)),
-            PrivateAccountKind::Pda { program_id, seed, identifier } => {
-                Self::for_private_pda(program_id, seed, npk, *identifier)
-            }
+            PrivateAccountKind::Pda {
+                program_id,
+                seed,
+                identifier,
+            } => Self::for_private_pda(program_id, seed, npk, *identifier),
         }
     }
 }
@@ -952,8 +961,8 @@ mod tests {
         let npk = NullifierPublicKey([3; 32]);
         let identifier: Identifier = u128::MAX;
         let expected = AccountId::new([
-            59, 239, 182, 97, 14, 220, 96, 115, 238, 133, 143, 33, 234, 82, 237, 255, 148, 110,
-            54, 124, 98, 159, 245, 101, 146, 182, 150, 54, 37, 62, 25, 17,
+            59, 239, 182, 97, 14, 220, 96, 115, 238, 133, 143, 33, 234, 82, 237, 255, 148, 110, 54,
+            124, 98, 159, 245, 101, 146, 182, 150, 54, 37, 62, 25, 17,
         ]);
         assert_eq!(
             AccountId::for_private_pda(&program_id, &seed, &npk, identifier),

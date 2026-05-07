@@ -6,7 +6,7 @@ use std::{
 use nssa_core::{
     Commitment, CommitmentSetDigest, DUMMY_COMMITMENT_HASH, EncryptionScheme, Identifier,
     InputAccountIdentity, MembershipProof, Nullifier, NullifierPublicKey, NullifierSecretKey,
-    PrivateAccountKind, PrivacyPreservingCircuitInput, PrivacyPreservingCircuitOutput,
+    PrivacyPreservingCircuitInput, PrivacyPreservingCircuitOutput, PrivateAccountKind,
     SharedSecretKey,
     account::{Account, AccountId, AccountWithMetadata, Nonce},
     compute_digest_for_path,
@@ -25,8 +25,8 @@ struct ExecutionState {
     block_validity_window: BlockValidityWindow,
     timestamp_validity_window: TimestampValidityWindow,
     /// Positions (in `pre_states`) of private-PDA accounts whose supplied npk has been bound to
-    /// their `AccountId` via a proven `AccountId::for_private_pda(program_id, seed, npk, identifier)`
-    /// check.
+    /// their `AccountId` via a proven `AccountId::for_private_pda(program_id, seed, npk,
+    /// identifier)` check.
     /// Two proof paths populate this set: a `Claim::Pda(seed)` in a program's `post_state` on
     /// that `pre_state`, or a caller's `ChainedCall.pda_seeds` entry matching that `pre_state`
     /// under the private derivation. Binding is an idempotent property, not an event: the same
@@ -35,7 +35,8 @@ struct ExecutionState {
     /// not `assert!(insert)`. After the main loop, every private-PDA position must appear in this
     /// map; otherwise the npk is unbound and the circuit rejects.
     /// The stored `(ProgramId, PdaSeed)` is the owner program and seed, used in
-    /// `compute_circuit_output` to construct `PrivateAccountKind::Pda { program_id, seed, identifier }`.
+    /// `compute_circuit_output` to construct `PrivateAccountKind::Pda { program_id, seed,
+    /// identifier }`.
     private_pda_bound_positions: HashMap<usize, (ProgramId, PdaSeed)>,
     /// Across the whole transaction, each `(program_id, seed)` pair may resolve to at most one
     /// `AccountId`. A seed under a program can derive a family of accounts, one public PDA and
@@ -210,7 +211,9 @@ impl ExecutionState {
         for (pos, account_identity) in account_identities.iter().enumerate() {
             if account_identity.is_private_pda() {
                 assert!(
-                    execution_state.private_pda_bound_positions.contains_key(&pos),
+                    execution_state
+                        .private_pda_bound_positions
+                        .contains_key(&pos),
                     "private PDA pre_state at position {pos} has no proven (seed, npk) binding via Claim::Pda or caller pda_seeds"
                 );
             }
@@ -361,12 +364,14 @@ impl ExecutionState {
                                 .expect(
                                     "private PDA pre_state must have an npk in the position map",
                                 );
-                            let pda = AccountId::for_private_pda(&program_id, &seed, npk, *identifier);
+                            let pda =
+                                AccountId::for_private_pda(&program_id, &seed, npk, *identifier);
                             assert_eq!(
                                 pre_account_id, pda,
                                 "Invalid private PDA claim for account {pre_account_id}"
                             );
-                            self.private_pda_bound_positions.insert(pre_state_position, (program_id, seed));
+                            self.private_pda_bound_positions
+                                .insert(pre_state_position, (program_id, seed));
                             assert_family_binding(
                                 &mut self.pda_family_binding,
                                 program_id,
@@ -459,7 +464,8 @@ fn resolve_authorization_and_record_bindings(
                 if AccountId::for_public_pda(&caller, seed) == pre_account_id {
                     return Some((*seed, false, caller));
                 }
-                if let Some((npk, identifier)) = private_pda_npk_by_position.get(&pre_state_position)
+                if let Some((npk, identifier)) =
+                    private_pda_npk_by_position.get(&pre_state_position)
                     && AccountId::for_private_pda(&caller, seed, npk, *identifier) == pre_account_id
                 {
                     return Some((*seed, true, caller));
@@ -614,7 +620,11 @@ fn compute_circuit_output(
                     new_nonce,
                 );
             }
-            InputAccountIdentity::PrivatePdaInit { npk: _, ssk, identifier } => {
+            InputAccountIdentity::PrivatePdaInit {
+                npk: _,
+                ssk,
+                identifier,
+            } => {
                 // The npk-to-account_id binding is established upstream in
                 // `validate_and_sync_states` via `Claim::Pda(seed)` or a caller `pda_seeds`
                 // match. Here we only enforce the init pre-conditions. The supplied npk on

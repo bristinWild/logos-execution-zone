@@ -91,10 +91,12 @@ impl InputAccountIdentity {
     #[must_use]
     pub fn npk_if_private_pda(&self) -> Option<(NullifierPublicKey, Identifier)> {
         match self {
-            Self::PrivatePdaInit { npk, identifier, .. } => Some((*npk, *identifier)),
-            Self::PrivatePdaUpdate { nsk, identifier, .. } => {
-                Some((NullifierPublicKey::from(nsk), *identifier))
-            }
+            Self::PrivatePdaInit {
+                npk, identifier, ..
+            } => Some((*npk, *identifier)),
+            Self::PrivatePdaUpdate {
+                nsk, identifier, ..
+            } => Some((NullifierPublicKey::from(nsk), *identifier)),
             Self::Public
             | Self::PrivateAuthorizedInit { .. }
             | Self::PrivateAuthorizedUpdate { .. }

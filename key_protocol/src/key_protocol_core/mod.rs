@@ -66,9 +66,10 @@ impl NSSAUserData {
         let mut check_res = true;
         for (account_id, entry) in accounts_keys_map {
             let npk = &entry.key_chain.nullifier_public_key;
-            let any_match = entry.accounts.iter().any(|(kind, _)| {
-                nssa::AccountId::for_private_account(npk, kind) == *account_id
-            });
+            let any_match = entry
+                .accounts
+                .iter()
+                .any(|(kind, _)| nssa::AccountId::for_private_account(npk, kind) == *account_id);
             if !any_match {
                 println!("No matching entry found for account_id {account_id}");
                 check_res = false;
@@ -170,8 +171,10 @@ impl NSSAUserData {
         // Check default accounts
         if let Some(entry) = self.default_user_private_accounts.get(&account_id) {
             let npk = &entry.key_chain.nullifier_public_key;
-            if let Some((kind, account)) =
-                entry.accounts.iter().find(|(kind, _)| nssa::AccountId::for_private_account(npk, kind) == account_id)
+            if let Some((kind, account)) = entry
+                .accounts
+                .iter()
+                .find(|(kind, _)| nssa::AccountId::for_private_account(npk, kind) == account_id)
             {
                 return Some((entry.key_chain.clone(), account.clone(), kind.identifier()));
             }
@@ -181,8 +184,11 @@ impl NSSAUserData {
         if let Some(node) = self.private_key_tree.get_node(account_id) {
             let key_chain = &node.value.0;
             let npk = &key_chain.nullifier_public_key;
-            if let Some((kind, account)) =
-                node.value.1.iter().find(|(kind, _)| nssa::AccountId::for_private_account(npk, kind) == account_id)
+            if let Some((kind, account)) = node
+                .value
+                .1
+                .iter()
+                .find(|(kind, _)| nssa::AccountId::for_private_account(npk, kind) == account_id)
             {
                 return Some((key_chain.clone(), account.clone(), kind.identifier()));
             }

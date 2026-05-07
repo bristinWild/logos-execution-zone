@@ -462,7 +462,11 @@ mod tests {
 
         assert_eq!(
             decrypt_kind(&output, &shared_secret, 0),
-            PrivateAccountKind::Pda { program_id: program.id(), seed, identifier },
+            PrivateAccountKind::Pda {
+                program_id: program.id(),
+                seed,
+                identifier
+            },
         );
     }
 
@@ -593,7 +597,10 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(decrypt_kind(&output, &ssk, 0), PrivateAccountKind::Regular(identifier));
+        assert_eq!(
+            decrypt_kind(&output, &ssk, 0),
+            PrivateAccountKind::Regular(identifier)
+        );
     }
 
     /// `PrivateUnauthorized` with a non-default identifier produces a ciphertext that decrypts
@@ -606,7 +613,11 @@ mod tests {
         let ssk = SharedSecretKey::new(&[55; 32], &keys.vpk());
 
         let sender = AccountWithMetadata::new(
-            Account { program_owner: program.id(), balance: 1, ..Account::default() },
+            Account {
+                program_owner: program.id(),
+                balance: 1,
+                ..Account::default()
+            },
             true,
             AccountId::new([0; 32]),
         );
@@ -628,7 +639,10 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(decrypt_kind(&output, &ssk, 0), PrivateAccountKind::Regular(identifier));
+        assert_eq!(
+            decrypt_kind(&output, &ssk, 0),
+            PrivateAccountKind::Regular(identifier)
+        );
     }
 
     /// `PrivateAuthorizedUpdate` with a non-default identifier produces a ciphertext that decrypts
@@ -640,7 +654,11 @@ mod tests {
         let identifier: u128 = 99;
         let ssk = SharedSecretKey::new(&[55; 32], &keys.vpk());
         let account_id = AccountId::from((&keys.npk(), identifier));
-        let account = Account { program_owner: program.id(), balance: 1, ..Account::default() };
+        let account = Account {
+            program_owner: program.id(),
+            balance: 1,
+            ..Account::default()
+        };
         let commitment = Commitment::new(&account_id, &account);
         let mut commitment_set = CommitmentSet::with_capacity(1);
         commitment_set.extend(std::slice::from_ref(&commitment));
@@ -664,7 +682,10 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(decrypt_kind(&output, &ssk, 0), PrivateAccountKind::Regular(identifier));
+        assert_eq!(
+            decrypt_kind(&output, &ssk, 0),
+            PrivateAccountKind::Regular(identifier)
+        );
     }
 
     /// `PrivatePdaUpdate` with a non-default identifier produces a ciphertext that decrypts
@@ -681,8 +702,11 @@ mod tests {
 
         let auth_transfer_id = auth_transfer.id();
         let pda_id = AccountId::for_private_pda(&program.id(), &seed, &npk, identifier);
-        let pda_account =
-            Account { program_owner: auth_transfer_id, balance: 1, ..Account::default() };
+        let pda_account = Account {
+            program_owner: auth_transfer_id,
+            balance: 1,
+            ..Account::default()
+        };
         let pda_commitment = Commitment::new(&pda_id, &pda_account);
         let mut commitment_set = CommitmentSet::with_capacity(1);
         commitment_set.extend(std::slice::from_ref(&pda_commitment));
@@ -691,8 +715,10 @@ mod tests {
         let recipient_pre =
             AccountWithMetadata::new(Account::default(), true, AccountId::new([0; 32]));
 
-        let program_with_deps =
-            ProgramWithDependencies::new(program.clone(), [(auth_transfer_id, auth_transfer)].into());
+        let program_with_deps = ProgramWithDependencies::new(
+            program.clone(),
+            [(auth_transfer_id, auth_transfer)].into(),
+        );
 
         let (output, _) = execute_and_prove(
             vec![pda_pre, recipient_pre],
@@ -712,7 +738,11 @@ mod tests {
 
         assert_eq!(
             decrypt_kind(&output, &ssk, 0),
-            PrivateAccountKind::Pda { program_id: program.id(), seed, identifier },
+            PrivateAccountKind::Pda {
+                program_id: program.id(),
+                seed,
+                identifier
+            },
         );
     }
 }

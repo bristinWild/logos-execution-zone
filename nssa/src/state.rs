@@ -4341,7 +4341,7 @@ pub mod tests {
         let alice_shared_0 = SharedSecretKey::new(&[10; 32], &alice_keys.vpk());
         let alice_shared_1 = SharedSecretKey::new(&[11; 32], &alice_keys.vpk());
 
-        // Fund alice_pda_0 
+        // Fund alice_pda_0
         {
             let funder_account = state.get_account_by_id(funder_id);
             let funder_nonce = funder_account.nonce;
@@ -4365,12 +4365,15 @@ pub mod tests {
             let message = Message::try_from_circuit_output(
                 vec![funder_id],
                 vec![funder_nonce],
-                vec![(alice_npk, alice_keys.vpk(), EphemeralPublicKey::from_scalar([10; 32]))],
+                vec![(
+                    alice_npk,
+                    alice_keys.vpk(),
+                    EphemeralPublicKey::from_scalar([10; 32]),
+                )],
                 output,
             )
             .unwrap();
-            let witness_set =
-                WitnessSet::for_message(&message, proof, &[&funder_keys.signing_key]);
+            let witness_set = WitnessSet::for_message(&message, proof, &[&funder_keys.signing_key]);
             state
                 .transition_from_privacy_preserving_transaction(
                     &PrivacyPreservingTransaction::new(message, witness_set),
@@ -4380,7 +4383,7 @@ pub mod tests {
                 .unwrap();
         }
 
-        // Fund alice_pda_1 
+        // Fund alice_pda_1
         {
             let funder_account = state.get_account_by_id(funder_id);
             let funder_nonce = funder_account.nonce;
@@ -4404,12 +4407,15 @@ pub mod tests {
             let message = Message::try_from_circuit_output(
                 vec![funder_id],
                 vec![funder_nonce],
-                vec![(alice_npk, alice_keys.vpk(), EphemeralPublicKey::from_scalar([11; 32]))],
+                vec![(
+                    alice_npk,
+                    alice_keys.vpk(),
+                    EphemeralPublicKey::from_scalar([11; 32]),
+                )],
                 output,
             )
             .unwrap();
-            let witness_set =
-                WitnessSet::for_message(&message, proof, &[&funder_keys.signing_key]);
+            let witness_set = WitnessSet::for_message(&message, proof, &[&funder_keys.signing_key]);
             state
                 .transition_from_privacy_preserving_transaction(
                     &PrivacyPreservingTransaction::new(message, witness_set),
@@ -4451,7 +4457,11 @@ pub mod tests {
             let message = Message::try_from_circuit_output(
                 vec![recipient_id],
                 vec![Nonce(0)],
-                vec![(alice_npk, alice_keys.vpk(), EphemeralPublicKey::from_scalar([10; 32]))],
+                vec![(
+                    alice_npk,
+                    alice_keys.vpk(),
+                    EphemeralPublicKey::from_scalar([10; 32]),
+                )],
                 output,
             )
             .unwrap();
@@ -4491,7 +4501,11 @@ pub mod tests {
             let message = Message::try_from_circuit_output(
                 vec![recipient_id],
                 vec![],
-                vec![(alice_npk, alice_keys.vpk(), EphemeralPublicKey::from_scalar([11; 32]))],
+                vec![(
+                    alice_npk,
+                    alice_keys.vpk(),
+                    EphemeralPublicKey::from_scalar([11; 32]),
+                )],
                 output,
             )
             .unwrap();

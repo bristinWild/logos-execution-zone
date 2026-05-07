@@ -168,7 +168,6 @@ impl Program {
             elf: PINATA_TOKEN_ELF.to_vec(),
         }
     }
-
 }
 
 #[cfg(test)]
@@ -342,7 +341,6 @@ mod tests {
                 elf: AUTH_TRANSFER_PROXY_ELF.to_vec(),
             }
         }
-
 
         #[must_use]
         pub fn changer_claimer() -> Self {

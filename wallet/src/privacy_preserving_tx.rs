@@ -198,23 +198,19 @@ impl AccountManager {
             .iter()
             .map(|state| match state {
                 State::Public { .. } => InputAccountIdentity::Public,
-                State::Private(pre) if pre.is_pda => {
-                    match (pre.nsk, pre.proof.clone()) {
-                        (Some(nsk), Some(membership_proof)) => {
-                            InputAccountIdentity::PrivatePdaUpdate {
-                                ssk: pre.ssk,
-                                nsk,
-                                membership_proof,
-                                identifier: pre.identifier,
-                            }
-                        }
-                        _ => InputAccountIdentity::PrivatePdaInit {
-                            npk: pre.npk,
-                            ssk: pre.ssk,
-                            identifier: pre.identifier,
-                        },
-                    }
-                }
+                State::Private(pre) if pre.is_pda => match (pre.nsk, pre.proof.clone()) {
+                    (Some(nsk), Some(membership_proof)) => InputAccountIdentity::PrivatePdaUpdate {
+                        ssk: pre.ssk,
+                        nsk,
+                        membership_proof,
+                        identifier: pre.identifier,
+                    },
+                    _ => InputAccountIdentity::PrivatePdaInit {
+                        npk: pre.npk,
+                        ssk: pre.ssk,
+                        identifier: pre.identifier,
+                    },
+                },
                 State::Private(pre) => match (pre.nsk, pre.proof.clone()) {
                     (Some(nsk), Some(membership_proof)) => {
                         InputAccountIdentity::PrivateAuthorizedUpdate {
@@ -321,4 +317,3 @@ async fn private_acc_preparation(
         is_pda,
     })
 }
-

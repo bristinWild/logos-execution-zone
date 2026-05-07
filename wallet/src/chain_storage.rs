@@ -90,7 +90,10 @@ impl WalletChainStore {
                             data.account_id(),
                             UserPrivateAccountData {
                                 key_chain: data.key_chain,
-                                accounts: vec![(PrivateAccountKind::Regular(data.identifier), data.account)],
+                                accounts: vec![(
+                                    PrivateAccountKind::Regular(data.identifier),
+                                    data.account,
+                                )],
                             },
                         );
                     }
