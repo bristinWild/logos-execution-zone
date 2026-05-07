@@ -19,7 +19,7 @@ pub enum PrivacyPreservingAccount {
         vpk: ViewingPublicKey,
         identifier: Identifier,
     },
-    /// An owned private PDA: wallet holds the nsk/npk; account_id was derived via
+    /// An owned private PDA: wallet holds the nsk/npk; `account_id` was derived via
     /// `AccountId::for_private_pda`. Produces visibility mask 3.
     PrivatePdaOwned(AccountId),
     /// A foreign private PDA: wallet knows the recipient's npk/vpk but not their nsk.

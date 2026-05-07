@@ -7,15 +7,15 @@ use nssa_core::{
 };
 use risc0_zkvm::serde::to_vec;
 
-/// Proxy for interacting with private PDAs via auth_transfer.
+/// Proxy for interacting with private PDAs via `auth_transfer`.
 ///
 /// The `is_fund` flag selects the operating mode:
 ///
-/// - `false` (Spend): pre_states = [pda (authorized), recipient]. Debits the PDA. The PDA-to-npk
-///   binding is established via `pda_seeds` in the chained call to auth_transfer.
+/// - `false` (Spend): `pre_states = [pda (authorized), recipient]`. Debits the PDA. The PDA-to-npk
+///   binding is established via `pda_seeds` in the chained call to `auth_transfer`.
 ///
-/// - `true` (Fund): pre_states = [sender (authorized), pda (foreign/uninitialized)]. Credits the
-///   PDA. A direct call to auth_transfer cannot bind the PDA because auth_transfer uses
+/// - `true` (Fund): `pre_states = [sender (authorized), pda (foreign/uninitialized)]`. Credits the
+///   PDA. A direct call to `auth_transfer` cannot bind the PDA because `auth_transfer` uses
 ///   `Claim::Authorized`, not `Claim::Pda`. Routing through this proxy establishes the binding via
 ///   `pda_seeds` in the chained call.
 type Instruction = (PdaSeed, u128, ProgramId, bool);

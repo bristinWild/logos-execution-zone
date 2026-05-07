@@ -22,11 +22,15 @@ use wallet::{
     cli::{Command, account::AccountSubcommand},
 };
 
-/// Funds a private PDA via the proxy program with a chained call to auth_transfer.
+/// Funds a private PDA via the proxy program with a chained call to `auth_transfer`.
 ///
-/// A direct call to auth_transfer cannot establish the PDA-to-npk binding because it uses
+/// A direct call to `auth_transfer` cannot establish the PDA-to-npk binding because it uses
 /// `Claim::Authorized` rather than `Claim::Pda`. Routing through the proxy provides the binding
-/// via `pda_seeds` in the chained call to auth_transfer.
+/// via `pda_seeds` in the chained call to `auth_transfer`.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "test helper — grouping args would obscure intent"
+)]
 async fn fund_private_pda(
     wallet: &WalletCore,
     sender: AccountId,
@@ -62,6 +66,10 @@ async fn fund_private_pda(
 /// Spends from an owned private PDA to a fresh private-foreign recipient.
 ///
 /// Alice must own the PDA in the wallet (i.e. it must have been synced after a receive).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "test helper — grouping args would obscure intent"
+)]
 async fn spend_private_pda(
     wallet: &WalletCore,
     pda_account_id: AccountId,

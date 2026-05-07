@@ -63,21 +63,24 @@ pub enum PrivateAccountKind {
 }
 
 impl PrivateAccountKind {
-    ///   Regular(ident):                  0x00 || ident (16 LE) || [0u8; 64]
-    ///   Pda { program_id, seed, ident }: 0x01 || program_id (32 LE) || seed (32) || ident (16 LE)
+    /// Header layout (all integers little-endian):
+    ///
+    /// ```text
+    /// Regular(ident):                  0x00 || ident (16 LE) || [0u8; 64]
+    /// Pda { program_id, seed, ident }: 0x01 || program_id (32) || seed (32) || ident (16 LE)
+    /// ```
     pub const HEADER_LEN: usize = 81;
 
     #[must_use]
-    pub fn identifier(&self) -> Identifier {
+    pub const fn identifier(&self) -> Identifier {
         match self {
-            Self::Regular(identifier) => *identifier,
-            Self::Pda { identifier, .. } => *identifier,
+            Self::Regular(identifier) | Self::Pda { identifier, .. } => *identifier,
         }
     }
 
     #[must_use]
     pub fn to_header_bytes(&self) -> [u8; Self::HEADER_LEN] {
-        let mut bytes = [0u8; Self::HEADER_LEN];
+        let mut bytes = [0_u8; Self::HEADER_LEN];
         match self {
             Self::Regular(identifier) => {
                 bytes[0] = 0x00;
@@ -90,9 +93,9 @@ impl PrivateAccountKind {
                 identifier,
             } => {
                 bytes[0] = 0x01;
-                for (i, &word) in program_id.iter().enumerate() {
-                    bytes[1 + i * 4..1 + (i + 1) * 4].copy_from_slice(&word.to_le_bytes());
-                }
+                let id_bytes: &[u8] =
+                    bytemuck::try_cast_slice(program_id).expect("ProgramId is castable to &[u8]");
+                bytes[1..33].copy_from_slice(id_bytes);
                 bytes[33..65].copy_from_slice(seed.as_bytes());
                 bytes[65..81].copy_from_slice(&identifier.to_le_bytes());
             }
@@ -109,11 +112,10 @@ impl PrivateAccountKind {
                 Some(Self::Regular(identifier))
             }
             0x01 => {
-                let mut program_id = [0u32; 8];
-                for (i, word) in program_id.iter_mut().enumerate() {
-                    *word =
-                        u32::from_le_bytes(bytes[1 + i * 4..1 + (i + 1) * 4].try_into().unwrap());
-                }
+                let program_id: ProgramId = bytemuck::try_cast_slice(&bytes[1..33])
+                    .expect("bytes are castable to &[u32]")
+                    .try_into()
+                    .expect("slice has exactly 8 u32 elements");
                 let seed = PdaSeed::new(bytes[33..65].try_into().unwrap());
                 let identifier = Identifier::from_le_bytes(bytes[65..81].try_into().unwrap());
                 Some(Self::Pda {
@@ -1009,8 +1011,8 @@ mod tests {
         );
     }
 
-    /// Different identifiers produce different addresses for the same (program_id, seed, npk),
-    /// confirming that each (program_id, seed, npk) controls a family of 2^128 addresses.
+    /// Different identifiers produce different addresses for the same `(program_id, seed, npk)`,
+    /// confirming that each `(program_id, seed, npk)` tuple controls a family of 2^128 addresses.
     #[test]
     fn for_private_pda_differs_for_different_identifier() {
         let program_id: ProgramId = [1; 8];
@@ -1043,8 +1045,8 @@ mod tests {
     fn private_account_kind_header_round_trips() {
         let regular = PrivateAccountKind::Regular(42);
         let pda = PrivateAccountKind::Pda {
-            program_id: [1u32; 8],
-            seed: PdaSeed::new([2u8; 32]),
+            program_id: [1_u32; 8],
+            seed: PdaSeed::new([2_u8; 32]),
             identifier: u128::MAX,
         };
         assert_eq!(
@@ -1060,7 +1062,7 @@ mod tests {
     #[cfg(feature = "host")]
     #[test]
     fn private_account_kind_unknown_discriminant_returns_none() {
-        let mut bytes = [0u8; PrivateAccountKind::HEADER_LEN];
+        let mut bytes = [0_u8; PrivateAccountKind::HEADER_LEN];
         bytes[0] = 0xFF;
         assert_eq!(PrivateAccountKind::from_header_bytes(&bytes), None);
     }
@@ -1079,7 +1081,11 @@ mod tests {
         assert_eq!(
             AccountId::for_private_account(
                 &npk,
-                &PrivateAccountKind::Pda { program_id, seed, identifier }
+                &PrivateAccountKind::Pda {
+                    program_id,
+                    seed,
+                    identifier
+                }
             ),
             AccountId::for_private_pda(&program_id, &seed, &npk, identifier),
         );

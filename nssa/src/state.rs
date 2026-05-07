@@ -4355,7 +4355,7 @@ pub mod tests {
                     InputAccountIdentity::Public,
                     InputAccountIdentity::PrivatePdaInit {
                         npk: alice_npk,
-                        ssk: alice_shared_0.clone(),
+                        ssk: alice_shared_0,
                         identifier: 0,
                     },
                 ],
@@ -4397,7 +4397,7 @@ pub mod tests {
                     InputAccountIdentity::Public,
                     InputAccountIdentity::PrivatePdaInit {
                         npk: alice_npk,
-                        ssk: alice_shared_1.clone(),
+                        ssk: alice_shared_1,
                         identifier: 1,
                     },
                 ],

@@ -130,8 +130,8 @@ mod tests {
     #[test]
     fn encrypt_same_length_for_account_and_pda() {
         let account = Account::default();
-        let secret = SharedSecretKey([0u8; 32]);
-        let commitment = crate::Commitment::new(&AccountId::new([0u8; 32]), &Account::default());
+        let secret = SharedSecretKey([0_u8; 32]);
+        let commitment = crate::Commitment::new(&AccountId::new([0_u8; 32]), &Account::default());
 
         let account_ct = EncryptionScheme::encrypt(
             &account,
@@ -143,8 +143,8 @@ mod tests {
         let pda_ct = EncryptionScheme::encrypt(
             &account,
             &PrivateAccountKind::Pda {
-                program_id: [1u32; 8],
-                seed: PdaSeed::new([2u8; 32]),
+                program_id: [1_u32; 8],
+                seed: PdaSeed::new([2_u8; 32]),
                 identifier: 42,
             },
             &secret,

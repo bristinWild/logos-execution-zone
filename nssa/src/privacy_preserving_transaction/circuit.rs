@@ -182,21 +182,6 @@ mod tests {
         program::{PdaSeed, PrivateAccountKind},
     };
 
-    fn decrypt_kind(
-        output: &PrivacyPreservingCircuitOutput,
-        ssk: &SharedSecretKey,
-        idx: usize,
-    ) -> PrivateAccountKind {
-        let (kind, _) = EncryptionScheme::decrypt(
-            &output.ciphertexts[idx],
-            ssk,
-            &output.new_commitments[idx],
-            idx as u32,
-        )
-        .unwrap();
-        kind
-    }
-
     use super::*;
     use crate::{
         error::NssaError,
@@ -207,6 +192,21 @@ mod tests {
             tests::{test_private_account_keys_1, test_private_account_keys_2},
         },
     };
+
+    fn decrypt_kind(
+        output: &PrivacyPreservingCircuitOutput,
+        ssk: &SharedSecretKey,
+        idx: usize,
+    ) -> PrivateAccountKind {
+        let (kind, _) = EncryptionScheme::decrypt(
+            &output.ciphertexts[idx],
+            ssk,
+            &output.new_commitments[idx],
+            u32::try_from(idx).expect("idx fits in u32"),
+        )
+        .unwrap();
+        kind
+    }
 
     #[test]
     fn prove_privacy_preserving_execution_circuit_public_and_private_pre_accounts() {
@@ -453,7 +453,7 @@ mod tests {
             Program::serialize_instruction(seed).unwrap(),
             vec![InputAccountIdentity::PrivatePdaInit {
                 npk,
-                ssk: shared_secret.clone(),
+                ssk: shared_secret,
                 identifier,
             }],
             &program.clone().into(),
@@ -589,7 +589,7 @@ mod tests {
             vec![pre],
             Program::serialize_instruction(0_u128).unwrap(),
             vec![InputAccountIdentity::PrivateAuthorizedInit {
-                ssk: ssk.clone(),
+                ssk,
                 nsk: keys.nsk,
                 identifier,
             }],
@@ -631,7 +631,7 @@ mod tests {
                 InputAccountIdentity::Public,
                 InputAccountIdentity::PrivateUnauthorized {
                     npk: keys.npk(),
-                    ssk: ssk.clone(),
+                    ssk,
                     identifier,
                 },
             ],
@@ -671,7 +671,7 @@ mod tests {
             Program::serialize_instruction(1_u128).unwrap(),
             vec![
                 InputAccountIdentity::PrivateAuthorizedUpdate {
-                    ssk: ssk.clone(),
+                    ssk,
                     nsk: keys.nsk,
                     membership_proof: commitment_set.get_proof_for(&commitment).unwrap(),
                     identifier,
@@ -725,7 +725,7 @@ mod tests {
             Program::serialize_instruction((seed, 1_u128, auth_transfer_id, false)).unwrap(),
             vec![
                 InputAccountIdentity::PrivatePdaUpdate {
-                    ssk: ssk.clone(),
+                    ssk,
                     nsk: keys.nsk,
                     membership_proof: commitment_set.get_proof_for(&pda_commitment).unwrap(),
                     identifier,
@@ -795,10 +795,8 @@ mod tests {
         let recipient_pre =
             AccountWithMetadata::new(Account::default(), true, AccountId::new([0; 32]));
 
-        let program_with_deps = ProgramWithDependencies::new(
-            program,
-            [(auth_transfer_id, auth_transfer)].into(),
-        );
+        let program_with_deps =
+            ProgramWithDependencies::new(program, [(auth_transfer_id, auth_transfer)].into());
 
         let result = execute_and_prove(
             vec![pda_pre, recipient_pre],
