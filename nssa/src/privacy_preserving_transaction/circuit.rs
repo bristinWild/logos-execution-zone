@@ -179,8 +179,7 @@ mod tests {
         Commitment, DUMMY_COMMITMENT_HASH, EncryptionScheme, Nullifier,
         PrivacyPreservingCircuitOutput, SharedSecretKey,
         account::{Account, AccountId, AccountWithMetadata, Nonce, data::Data},
-        encryption::PrivateAccountKind,
-        program::PdaSeed,
+        program::{PdaSeed, PrivateAccountKind},
     };
 
     fn decrypt_kind(

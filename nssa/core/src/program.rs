@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
     BlockId, Identifier, NullifierPublicKey, Timestamp,
     account::{Account, AccountId, AccountWithMetadata},
-    encryption::PrivateAccountKind,
 };
 
 pub const DEFAULT_PROGRAM_ID: ProgramId = [0; 8];
@@ -46,6 +45,78 @@ impl PdaSeed {
 impl AsRef<[u8]> for PdaSeed {
     fn as_ref(&self) -> &[u8] {
         &self.0
+    }
+}
+
+/// Discriminates the type of private account a ciphertext belongs to, carrying the data needed
+/// to reconstruct the account's [`AccountId`] on the receiver side.
+///
+/// [`AccountId`]: crate::account::AccountId
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PrivateAccountKind {
+    Regular(Identifier),
+    Pda {
+        program_id: ProgramId,
+        seed: PdaSeed,
+        identifier: Identifier,
+    },
+}
+
+impl PrivateAccountKind {
+    ///   Regular(ident):                  0x00 || ident (16 LE) || [0u8; 64]
+    ///   Pda { program_id, seed, ident }: 0x01 || program_id (32 LE) || seed (32) || ident (16 LE)
+    pub const HEADER_LEN: usize = 81;
+
+    #[must_use]
+    pub fn identifier(&self) -> Identifier {
+        match self {
+            Self::Regular(identifier) => *identifier,
+            Self::Pda { identifier, .. } => *identifier,
+        }
+    }
+
+    #[must_use]
+    pub fn to_header_bytes(&self) -> [u8; Self::HEADER_LEN] {
+        let mut bytes = [0u8; Self::HEADER_LEN];
+        match self {
+            Self::Regular(identifier) => {
+                bytes[0] = 0x00;
+                bytes[1..17].copy_from_slice(&identifier.to_le_bytes());
+                // bytes[17..81] are zero padding
+            }
+            Self::Pda { program_id, seed, identifier } => {
+                bytes[0] = 0x01;
+                for (i, &word) in program_id.iter().enumerate() {
+                    bytes[1 + i * 4..1 + (i + 1) * 4].copy_from_slice(&word.to_le_bytes());
+                }
+                bytes[33..65].copy_from_slice(seed.as_bytes());
+                bytes[65..81].copy_from_slice(&identifier.to_le_bytes());
+            }
+        }
+        bytes
+    }
+
+    #[cfg(feature = "host")]
+    #[must_use]
+    pub fn from_header_bytes(bytes: &[u8; Self::HEADER_LEN]) -> Option<Self> {
+        match bytes[0] {
+            0x00 => {
+                let identifier = Identifier::from_le_bytes(bytes[1..17].try_into().unwrap());
+                Some(Self::Regular(identifier))
+            }
+            0x01 => {
+                let mut program_id = [0u32; 8];
+                for (i, word) in program_id.iter_mut().enumerate() {
+                    *word = u32::from_le_bytes(
+                        bytes[1 + i * 4..1 + (i + 1) * 4].try_into().unwrap(),
+                    );
+                }
+                let seed = PdaSeed::new(bytes[33..65].try_into().unwrap());
+                let identifier = Identifier::from_le_bytes(bytes[65..81].try_into().unwrap());
+                Some(Self::Pda { program_id, seed, identifier })
+            }
+            _ => None,
+        }
     }
 }
 

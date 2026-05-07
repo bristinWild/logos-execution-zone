@@ -10,7 +10,8 @@ pub use commitment::{
     Commitment, CommitmentSetDigest, DUMMY_COMMITMENT, DUMMY_COMMITMENT_HASH, MembershipProof,
     compute_digest_for_path,
 };
-pub use encryption::{EncryptionScheme, PrivateAccountKind, SharedSecretKey};
+pub use encryption::{EncryptionScheme, SharedSecretKey};
+pub use program::PrivateAccountKind;
 pub use nullifier::{Identifier, Nullifier, NullifierPublicKey, NullifierSecretKey};
 
 pub mod account;
