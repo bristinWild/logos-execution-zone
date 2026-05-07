@@ -1038,9 +1038,53 @@ mod tests {
         assert_ne!(private_id, public_id);
     }
 
-    // ---- compute_public_authorized_pdas tests ----
+    #[cfg(feature = "host")]
+    #[test]
+    fn private_account_kind_header_round_trips() {
+        let regular = PrivateAccountKind::Regular(42);
+        let pda = PrivateAccountKind::Pda {
+            program_id: [1u32; 8],
+            seed: PdaSeed::new([2u8; 32]),
+            identifier: u128::MAX,
+        };
+        assert_eq!(
+            PrivateAccountKind::from_header_bytes(&regular.to_header_bytes()),
+            Some(regular)
+        );
+        assert_eq!(
+            PrivateAccountKind::from_header_bytes(&pda.to_header_bytes()),
+            Some(pda)
+        );
+    }
 
-    /// `compute_public_authorized_pdas` returns the public PDA addresses for the caller's seeds.
+    #[cfg(feature = "host")]
+    #[test]
+    fn private_account_kind_unknown_discriminant_returns_none() {
+        let mut bytes = [0u8; PrivateAccountKind::HEADER_LEN];
+        bytes[0] = 0xFF;
+        assert_eq!(PrivateAccountKind::from_header_bytes(&bytes), None);
+    }
+
+    #[test]
+    fn for_private_account_dispatches_correctly() {
+        let program_id: ProgramId = [1; 8];
+        let seed = PdaSeed::new([2; 32]);
+        let npk = NullifierPublicKey([3; 32]);
+        let identifier: Identifier = 77;
+
+        assert_eq!(
+            AccountId::for_private_account(&npk, &PrivateAccountKind::Regular(identifier)),
+            AccountId::from((&npk, identifier)),
+        );
+        assert_eq!(
+            AccountId::for_private_account(
+                &npk,
+                &PrivateAccountKind::Pda { program_id, seed, identifier }
+            ),
+            AccountId::for_private_pda(&program_id, &seed, &npk, identifier),
+        );
+    }
+
     #[test]
     fn compute_public_authorized_pdas_with_seeds() {
         let caller: ProgramId = [1; 8];

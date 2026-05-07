@@ -745,4 +745,76 @@ mod tests {
             },
         );
     }
+
+    #[test]
+    fn private_pda_init_identifier_mismatch_fails() {
+        let program = Program::pda_claimer();
+        let keys = test_private_account_keys_1();
+        let npk = keys.npk();
+        let seed = PdaSeed::new([42; 32]);
+        let shared_secret = SharedSecretKey::new(&[55; 32], &keys.vpk());
+
+        let account_id = AccountId::for_private_pda(&program.id(), &seed, &npk, 5);
+        let pre_state = AccountWithMetadata::new(Account::default(), false, account_id);
+
+        let result = execute_and_prove(
+            vec![pre_state],
+            Program::serialize_instruction(seed).unwrap(),
+            vec![InputAccountIdentity::PrivatePdaInit {
+                npk,
+                ssk: shared_secret,
+                identifier: 99,
+            }],
+            &program.into(),
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
+
+    #[test]
+    fn private_pda_update_identifier_mismatch_fails() {
+        let program = Program::auth_transfer_proxy();
+        let auth_transfer = Program::authenticated_transfer_program();
+        let keys = test_private_account_keys_1();
+        let npk = keys.npk();
+        let seed = PdaSeed::new([42; 32]);
+        let ssk = SharedSecretKey::new(&[55; 32], &keys.vpk());
+
+        let auth_transfer_id = auth_transfer.id();
+        let pda_id = AccountId::for_private_pda(&program.id(), &seed, &npk, 5);
+        let pda_account = Account {
+            program_owner: auth_transfer_id,
+            balance: 1,
+            ..Account::default()
+        };
+        let pda_commitment = Commitment::new(&pda_id, &pda_account);
+        let mut commitment_set = CommitmentSet::with_capacity(1);
+        commitment_set.extend(std::slice::from_ref(&pda_commitment));
+
+        let pda_pre = AccountWithMetadata::new(pda_account, true, pda_id);
+        let recipient_pre =
+            AccountWithMetadata::new(Account::default(), true, AccountId::new([0; 32]));
+
+        let program_with_deps = ProgramWithDependencies::new(
+            program,
+            [(auth_transfer_id, auth_transfer)].into(),
+        );
+
+        let result = execute_and_prove(
+            vec![pda_pre, recipient_pre],
+            Program::serialize_instruction((seed, 1_u128, auth_transfer_id, false)).unwrap(),
+            vec![
+                InputAccountIdentity::PrivatePdaUpdate {
+                    ssk,
+                    nsk: keys.nsk,
+                    membership_proof: commitment_set.get_proof_for(&pda_commitment).unwrap(),
+                    identifier: 99,
+                },
+                InputAccountIdentity::Public,
+            ],
+            &program_with_deps,
+        );
+
+        assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
+    }
 }
