@@ -457,7 +457,6 @@ mod tests {
 
         SequencerConfig {
             home,
-            is_genesis_random: false,
             max_num_tx_in_block: 10,
             max_block_size: bytesize::ByteSize::mib(1),
             mempool_max_size: 10000,

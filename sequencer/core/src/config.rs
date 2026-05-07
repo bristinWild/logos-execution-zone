@@ -29,8 +29,6 @@ pub enum GenesisAction {
 pub struct SequencerConfig {
     /// Home dir of sequencer storage.
     pub home: PathBuf,
-    /// If `True`, then adds random sequence of bytes to genesis block.
-    pub is_genesis_random: bool,
     /// Maximum number of user transactions in a block (excludes the mandatory clock transaction).
     pub max_num_tx_in_block: usize,
     /// Maximum block size (includes header, user transactions, and the mandatory clock

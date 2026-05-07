@@ -1,7 +1,5 @@
 {
     "home": "/var/lib/sequencer_service",
-    "genesis_id": 1,
-    "is_genesis_random": true,
     "max_num_tx_in_block": 20,
     "max_block_size": "1 MiB",
     "mempool_max_size": 10000,
@@ -30,14 +28,14 @@
             }
         },
         {
-            "supply_private_account": {
-                "npk": [177,64,1,11,87,38,254,159,231,165,1,94,64,137,243,76,249,101,251,129,33,101,189,30,42,11,191,34,103,186,227,230],
+            "supply_account": {
+                "account_id": "61EsoYN6gvTLkveh1YSTMG3yJkncpHy5EGmxhSK4ew29",
                 "balance": 10000
             }
         },
         {
-            "supply_private_account": {
-                "npk": [32,67,72,164,106,53,66,239,141,15,52,230,136,177,2,236,207,243,134,135,210,143,87,232,215,128,194,120,113,224,4,165],
+            "supply_account": {
+                "account_id": "3m6HQmCgmAvsxZtxAHPqqEqoBG4335fCG8TzxigyW7rE",
                 "balance": 20000
             }
         }

@@ -77,7 +77,6 @@ pub fn sequencer_config(
 
     Ok(SequencerConfig {
         home,
-        is_genesis_random: true,
         max_num_tx_in_block,
         max_block_size,
         mempool_max_size,
