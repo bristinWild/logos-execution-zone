@@ -491,20 +491,20 @@ mod tests {
         let alice_shared_0 = SharedSecretKey::new(&[10; 32], &alice_keys.vpk());
         let alice_shared_1 = SharedSecretKey::new(&[11; 32], &alice_keys.vpk());
 
-        // ── Receive 0: fund alice_pda_0 (identifier = 0) ────────────────────────────────────────
+        // Fund alice_pda_0 (identifier = 0)
         let (output_recv_0, _) = execute_and_prove(
             vec![
-                AccountWithMetadata::new(Account::default(), false, alice_pda_0_id),
                 funder.clone(),
+                AccountWithMetadata::new(Account::default(), false, alice_pda_0_id),
             ],
-            Program::serialize_instruction((seed, amount, auth_transfer_id)).unwrap(),
+            Program::serialize_instruction((seed, amount, auth_transfer_id, true)).unwrap(),
             vec![
+                InputAccountIdentity::Public,
                 InputAccountIdentity::PrivatePdaInit {
                     npk: alice_npk,
                     ssk: alice_shared_0.clone(),
                     identifier: 0,
                 },
-                InputAccountIdentity::Public,
             ],
             &program_with_deps,
         )
@@ -526,20 +526,20 @@ mod tests {
         );
         assert_eq!(alice_pda_0_account.balance, amount);
 
-        // ── Receive 1: fund alice_pda_1 (identifier = 1, same seed) ─────────────────────────────
+        // Fund alice_pda_1 (identifier = 1, same seed)
         let (output_recv_1, _) = execute_and_prove(
             vec![
-                AccountWithMetadata::new(Account::default(), false, alice_pda_1_id),
                 funder.clone(),
+                AccountWithMetadata::new(Account::default(), false, alice_pda_1_id),
             ],
-            Program::serialize_instruction((seed, amount, auth_transfer_id)).unwrap(),
+            Program::serialize_instruction((seed, amount, auth_transfer_id, true)).unwrap(),
             vec![
+                InputAccountIdentity::Public,
                 InputAccountIdentity::PrivatePdaInit {
                     npk: alice_npk,
                     ssk: alice_shared_1.clone(),
                     identifier: 1,
                 },
-                InputAccountIdentity::Public,
             ],
             &program_with_deps,
         )
@@ -564,7 +564,7 @@ mod tests {
         // Different identifiers produce distinct commitments.
         assert_ne!(commitment_pda_0, commitment_pda_1);
 
-        // ── Spend 0: alice spends alice_pda_0 ───────────────────────────────────────────────────
+        // Alice spends alice_pda_0
         let mut cs_0 = CommitmentSet::with_capacity(1);
         cs_0.extend(std::slice::from_ref(&commitment_pda_0));
         let proof_pda_0 = cs_0.get_proof_for(&commitment_pda_0);
@@ -575,7 +575,7 @@ mod tests {
                 AccountWithMetadata::new(alice_pda_0_account, true, alice_pda_0_id),
                 AccountWithMetadata::new(Account::default(), false, recipient_0_id),
             ],
-            Program::serialize_instruction((seed, amount, auth_transfer_id)).unwrap(),
+            Program::serialize_instruction((seed, amount, auth_transfer_id, false)).unwrap(),
             vec![
                 InputAccountIdentity::PrivatePdaUpdate {
                     ssk: alice_shared_0.clone(),
@@ -596,7 +596,7 @@ mod tests {
         assert_eq!(output_spend_0.new_commitments.len(), 2);
         assert_eq!(output_spend_0.new_nullifiers.len(), 2);
 
-        // ── Spend 1: alice spends alice_pda_1 ───────────────────────────────────────────────────
+        // Alice spends alice_pda_1
         let mut cs_1 = CommitmentSet::with_capacity(1);
         cs_1.extend(std::slice::from_ref(&commitment_pda_1));
         let proof_pda_1 = cs_1.get_proof_for(&commitment_pda_1);
@@ -607,7 +607,7 @@ mod tests {
                 AccountWithMetadata::new(alice_pda_1_account, true, alice_pda_1_id),
                 AccountWithMetadata::new(Account::default(), false, recipient_1_id),
             ],
-            Program::serialize_instruction((seed, amount, auth_transfer_id)).unwrap(),
+            Program::serialize_instruction((seed, amount, auth_transfer_id, false)).unwrap(),
             vec![
                 InputAccountIdentity::PrivatePdaUpdate {
                     ssk: alice_shared_1.clone(),

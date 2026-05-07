@@ -35,9 +35,6 @@ fn main() {
 
     assert!(first.is_authorized, "first pre_state must be authorized");
 
-    // In Fund mode the PDA (second) starts unauthorized (PrivatePdaForeign). We pass it to the
-    // chained call with is_authorized=true so the value matches what the circuit will resolve via
-    // pda_seeds, satisfying the consistency assertion in validate_and_sync_states.
     let chained_pre_states = if is_fund {
         let pda_authorized = AccountWithMetadata {
             account: second.account.clone(),
