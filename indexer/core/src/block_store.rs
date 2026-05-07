@@ -8,7 +8,7 @@ use common::{
 use log::info;
 use logos_blockchain_core::{header::HeaderId, mantle::ops::channel::MsgId};
 use logos_blockchain_zone_sdk::Slot;
-use nssa::{Account, AccountId, V03State, ValidatedStateDiff};
+use nssa::{Account, AccountId, V03State};
 use nssa_core::BlockId;
 use storage::indexer::RocksDBIO;
 use tokio::sync::RwLock;
@@ -160,12 +160,13 @@ impl IndexerStore {
                             anyhow::bail!("Genesis block should contain only public transactions")
                         }
                     };
-                    let state_diff = ValidatedStateDiff::from_public_genesis_transaction(
-                        genesis_tx,
-                        &state_guard,
-                    )
-                    .context("Failed to create state diff from genesis transaction")?;
-                    state_guard.apply_state_diff(state_diff);
+                    state_guard
+                        .transition_from_public_transaction(
+                            genesis_tx,
+                            block.header.block_id,
+                            block.header.timestamp,
+                        )
+                        .context("Failed to execute genesis public transaction")?;
                 } else {
                     transaction
                         .clone()
@@ -202,38 +203,10 @@ impl IndexerStore {
 #[cfg(test)]
 mod tests {
     use common::{HashType, block::HashableBlockData};
-    use nssa::{AccountId, CLOCK_01_PROGRAM_ACCOUNT_ID, PublicKey, PublicTransaction};
     use tempfile::tempdir;
+    use testnet_initial_state::initial_pub_accounts_private_keys;
 
     use super::*;
-
-    fn acc1_sign_key() -> nssa::PrivateKey {
-        nssa::PrivateKey::try_new([1; 32]).unwrap()
-    }
-
-    fn acc2_sign_key() -> nssa::PrivateKey {
-        nssa::PrivateKey::try_new([2; 32]).unwrap()
-    }
-
-    fn acc1() -> AccountId {
-        AccountId::from(&PublicKey::new_from_private_key(&acc1_sign_key()))
-    }
-
-    fn acc2() -> AccountId {
-        AccountId::from(&PublicKey::new_from_private_key(&acc2_sign_key()))
-    }
-
-    fn genesis_mint_tx(account: AccountId, balance: u128) -> NSSATransaction {
-        let message = nssa::public_transaction::Message::try_new(
-            nssa::program::Program::authenticated_transfer_program().id(),
-            vec![account, CLOCK_01_PROGRAM_ACCOUNT_ID],
-            vec![],
-            authenticated_transfer_core::Instruction::Mint { amount: balance },
-        )
-        .unwrap();
-        let witness_set = nssa::public_transaction::WitnessSet::for_message(&message, &[]);
-        PublicTransaction::new(message, witness_set).into()
-    }
 
     #[test]
     fn correct_startup() {
@@ -252,19 +225,18 @@ mod tests {
 
         let storage = IndexerStore::open_db(home.as_ref()).unwrap();
 
-        let from = acc1();
-        let to = acc2();
-        let sign_key = acc1_sign_key();
+        let initial_accounts = initial_pub_accounts_private_keys();
+        let from = initial_accounts[0].account_id;
+        let to = initial_accounts[1].account_id;
+        let sign_key = initial_accounts[0].pub_sign_key.clone();
 
         // Submit genesis block
         let clock_tx = NSSATransaction::Public(clock_invocation(0));
-        let supply_from_tx = genesis_mint_tx(from, 10000);
-        let supply_to_tx = genesis_mint_tx(to, 20000);
         let genesis_block_data = HashableBlockData {
             block_id: 1,
             prev_block_hash: HashType::default(),
             timestamp: 0,
-            transactions: vec![supply_from_tx, supply_to_tx, clock_tx],
+            transactions: vec![clock_tx],
         };
         let genesis_block = genesis_block_data.into_pending_block(
             &common::test_utils::sequencer_sign_key_for_testing(),
@@ -276,30 +248,29 @@ mod tests {
             .await
             .unwrap();
 
-        for i in 2..10 {
+        for i in 0..10 {
             let tx = common::test_utils::create_transaction_native_token_transfer(
-                from,
-                i - 2,
-                to,
-                10,
-                &sign_key,
+                from, i, to, 10, &sign_key,
             );
-            let block_id = u64::try_from(i).unwrap();
+            let block_id = u64::try_from(i + 1).unwrap();
 
             let next_block = common::test_utils::produce_dummy_block(block_id, prev_hash, vec![tx]);
             prev_hash = Some(next_block.header.hash);
 
             storage
-                .put_block(next_block, HeaderId::from([u8::try_from(i).unwrap(); 32]))
+                .put_block(
+                    next_block,
+                    HeaderId::from([u8::try_from(i + 1).unwrap(); 32]),
+                )
                 .await
                 .unwrap();
         }
 
-        let acc1_val = storage.account_current_state(&acc1()).await.unwrap();
-        let acc2_val = storage.account_current_state(&acc2()).await.unwrap();
+        let acc1_val = storage.account_current_state(&from).await.unwrap();
+        let acc2_val = storage.account_current_state(&to).await.unwrap();
 
-        assert_eq!(acc1_val.balance, 9920);
-        assert_eq!(acc2_val.balance, 20080);
+        assert_eq!(acc1_val.balance, 9900);
+        assert_eq!(acc2_val.balance, 20100);
     }
 
     #[tokio::test]
@@ -310,45 +281,45 @@ mod tests {
 
         let mut prev_hash = None;
 
-        let from = acc1();
-        let to = acc2();
-        let sign_key = acc1_sign_key();
+        let initial_accounts = initial_pub_accounts_private_keys();
+        let from = initial_accounts[0].account_id;
+        let to = initial_accounts[1].account_id;
+        let sign_key = initial_accounts[0].pub_sign_key.clone();
 
-        for i in 2..10 {
+        for i in 0..10 {
             let tx = common::test_utils::create_transaction_native_token_transfer(
-                from,
-                i - 2,
-                to,
-                10,
-                &sign_key,
+                from, i, to, 10, &sign_key,
             );
-            let block_id = u64::try_from(i).unwrap();
+            let block_id = u64::try_from(i + 1).unwrap();
 
             let next_block = common::test_utils::produce_dummy_block(block_id, prev_hash, vec![tx]);
             prev_hash = Some(next_block.header.hash);
 
             storage
-                .put_block(next_block, HeaderId::from([u8::try_from(i).unwrap(); 32]))
+                .put_block(
+                    next_block,
+                    HeaderId::from([u8::try_from(i + 1).unwrap(); 32]),
+                )
                 .await
                 .unwrap();
         }
 
         // Genesis block: no transfers applied yet.
-        let acc1_at_1 = storage.account_state_at_block(&acc1(), 1).unwrap();
-        let acc2_at_1 = storage.account_state_at_block(&acc2(), 1).unwrap();
-        assert_eq!(acc1_at_1.balance, 10000);
-        assert_eq!(acc2_at_1.balance, 20000);
+        let acc1_at_1 = storage.account_state_at_block(&from, 1).unwrap();
+        let acc2_at_1 = storage.account_state_at_block(&to, 1).unwrap();
+        assert_eq!(acc1_at_1.balance, 9990);
+        assert_eq!(acc2_at_1.balance, 20010);
 
         // After block 5: 4 transfers of 10 applied (one each in blocks 2..=5).
-        let acc1_at_5 = storage.account_state_at_block(&acc1(), 5).unwrap();
-        let acc2_at_5 = storage.account_state_at_block(&acc2(), 5).unwrap();
-        assert_eq!(acc1_at_5.balance, 9960);
-        assert_eq!(acc2_at_5.balance, 20040);
+        let acc1_at_5 = storage.account_state_at_block(&from, 5).unwrap();
+        let acc2_at_5 = storage.account_state_at_block(&to, 5).unwrap();
+        assert_eq!(acc1_at_5.balance, 9950);
+        assert_eq!(acc2_at_5.balance, 20050);
 
         // After final block 9: 8 transfers applied; should match current state.
-        let acc1_at_9 = storage.account_state_at_block(&acc1(), 9).unwrap();
-        let acc2_at_9 = storage.account_state_at_block(&acc2(), 9).unwrap();
-        assert_eq!(acc1_at_9.balance, 9920);
-        assert_eq!(acc2_at_9.balance, 20080);
+        let acc1_at_9 = storage.account_state_at_block(&from, 9).unwrap();
+        let acc2_at_9 = storage.account_state_at_block(&to, 9).unwrap();
+        assert_eq!(acc1_at_9.balance, 9910);
+        assert_eq!(acc2_at_9.balance, 20090);
     }
 }

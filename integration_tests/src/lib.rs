@@ -9,7 +9,7 @@ use indexer_service::IndexerHandle;
 use log::{debug, error};
 use nssa::{AccountId, PrivacyPreservingTransaction};
 use nssa_core::Commitment;
-use sequencer_core::config::GenesisTransaction;
+use sequencer_core::config::GenesisAction;
 use sequencer_service::SequencerHandle;
 use sequencer_service_rpc::{RpcClient as _, SequencerClient, SequencerClientBuilder};
 use tempfile::TempDir;
@@ -20,7 +20,7 @@ use crate::{
     indexer_client::IndexerClient,
     setup::{
         setup_bedrock_node, setup_indexer, setup_private_accounts_with_initial_supply,
-        setup_sequencer, setup_wallet,
+        setup_public_accounts_with_initial_supply, setup_sequencer, setup_wallet,
     },
 };
 
@@ -216,7 +216,7 @@ impl Drop for TestContext {
 }
 
 pub struct TestContextBuilder {
-    genesis_transactions: Option<Vec<GenesisTransaction>>,
+    genesis_transactions: Option<Vec<GenesisAction>>,
     sequencer_partial_config: Option<config::SequencerPartialConfig>,
     enable_indexer: bool,
 }
@@ -226,12 +226,12 @@ impl TestContextBuilder {
         Self {
             genesis_transactions: None,
             sequencer_partial_config: None,
-            enable_indexer: false,
+            enable_indexer: true,
         }
     }
 
     #[must_use]
-    pub fn with_genesis(mut self, genesis_transactions: Vec<GenesisTransaction>) -> Self {
+    pub fn with_genesis(mut self, genesis_transactions: Vec<GenesisAction>) -> Self {
         self.genesis_transactions = Some(genesis_transactions);
         self
     }
@@ -291,19 +291,29 @@ impl TestContextBuilder {
         };
 
         let initial_public_accounts = config::default_public_accounts_for_wallet();
+        let initial_private_accounts = config::default_private_accounts_for_wallet();
         let (sequencer_handle, temp_sequencer_dir) = setup_sequencer(
             sequencer_partial_config.unwrap_or_default(),
             bedrock_addr,
-            genesis_transactions
-                .unwrap_or_else(|| config::genesis_from_public_accounts(&initial_public_accounts)),
+            genesis_transactions.unwrap_or_else(|| {
+                config::genesis_from_accounts(&initial_public_accounts, &initial_private_accounts)
+            }),
         )
         .await
         .context("Failed to setup Sequencer")?;
 
-        let (mut wallet, temp_wallet_dir, wallet_password) =
-            setup_wallet(sequencer_handle.addr(), &initial_public_accounts)
-                .context("Failed to setup wallet")?;
-        setup_private_accounts_with_initial_supply(&mut wallet)
+        let (mut wallet, temp_wallet_dir, wallet_password) = setup_wallet(
+            sequencer_handle.addr(),
+            &initial_public_accounts,
+            &initial_private_accounts,
+        )
+        .context("Failed to setup wallet")?;
+
+        setup_public_accounts_with_initial_supply(&wallet, &initial_public_accounts)
+            .await
+            .context("Failed to initialize public accounts in wallet")?;
+
+        setup_private_accounts_with_initial_supply(&mut wallet, &initial_private_accounts)
             .await
             .context("Failed to initialize private accounts in wallet")?;
 

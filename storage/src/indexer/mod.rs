@@ -4,7 +4,7 @@ use common::{
     block::Block,
     transaction::{NSSATransaction, clock_invocation},
 };
-use nssa::{GENESIS_BLOCK_ID, V03State, ValidatedStateDiff};
+use nssa::{GENESIS_BLOCK_ID, V03State};
 use rocksdb::{
     BoundColumnFamily, ColumnFamilyDescriptor, DBWithThreadMode, MultiThreaded, Options,
 };
@@ -189,16 +189,17 @@ impl RocksDBIO {
                             ));
                         }
                     };
-                    let state_diff = ValidatedStateDiff::from_public_genesis_transaction(
-                        &genesis_tx,
-                        &breakpoint,
-                    )
-                    .map_err(|err| {
-                        DbError::db_interaction_error(format!(
-                            "Failed to create state diff from genesis transaction with err {err:?}"
-                        ))
-                    })?;
-                    breakpoint.apply_state_diff(state_diff);
+                    breakpoint
+                        .transition_from_public_transaction(
+                            &genesis_tx,
+                            block.header.block_id,
+                            block.header.timestamp,
+                        )
+                        .map_err(|err| {
+                            DbError::db_interaction_error(format!(
+                                "genesis transaction execution failed with err {err:?}"
+                            ))
+                        })?;
                 } else {
                     transaction
                         .transaction_stateless_check()

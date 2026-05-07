@@ -17,8 +17,8 @@ use url::Url;
 /// A transaction to be applied at genesis to supply initial balances.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum GenesisTransaction {
-    SupplyPublicAccount {
+pub enum GenesisAction {
+    SupplyAccount {
         account_id: AccountId,
         balance: u128,
     },
@@ -51,7 +51,7 @@ pub struct SequencerConfig {
     pub bedrock_config: BedrockConfig,
     /// Genesis configuration.
     #[serde(default)]
-    pub genesis: Vec<GenesisTransaction>,
+    pub genesis: Vec<GenesisAction>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

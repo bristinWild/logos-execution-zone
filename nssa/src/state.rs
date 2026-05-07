@@ -8,7 +8,7 @@ pub use clock_core::{
 };
 use nssa_core::{
     BlockId, Commitment, CommitmentSetDigest, DUMMY_COMMITMENT, MembershipProof, Nullifier,
-    Timestamp,
+    SYSTEM_FAUCET_ACCOUNT_ID, Timestamp,
     account::{Account, AccountId, Nonce},
     program::ProgramId,
 };
@@ -124,8 +124,12 @@ pub struct V03State {
 
 impl Default for V03State {
     fn default() -> Self {
+        let faucet_account = system_faucet_account();
+        let mut public_state = HashMap::new();
+        public_state.insert(SYSTEM_FAUCET_ACCOUNT_ID, faucet_account);
+
         Self {
-            public_state: HashMap::new(),
+            public_state,
             private_state: (CommitmentSet::with_capacity(32), NullifierSet::new()),
             programs: HashMap::new(),
         }
@@ -145,7 +149,7 @@ impl V03State {
         genesis_timestamp: nssa_core::Timestamp,
     ) -> Self {
         let authenticated_transfer_program = Program::authenticated_transfer_program();
-        let public_state = initial_data
+        let mut public_state: HashMap<_, _> = initial_data
             .iter()
             .copied()
             .map(|(account_id, balance)| {
@@ -157,6 +161,8 @@ impl V03State {
                 (account_id, account)
             })
             .collect();
+        let faucet_account = system_faucet_account();
+        public_state.insert(SYSTEM_FAUCET_ACCOUNT_ID, faucet_account);
 
         let mut commitment_set = CommitmentSet::with_capacity(32);
         commitment_set.extend(&[DUMMY_COMMITMENT]);
@@ -180,6 +186,7 @@ impl V03State {
         this.insert_program(Program::token());
         this.insert_program(Program::amm());
         this.insert_program(Program::ata());
+        this.insert_program(Program::vault());
 
         this
     }
@@ -366,6 +373,14 @@ impl V03State {
     }
 }
 
+fn system_faucet_account() -> Account {
+    Account {
+        program_owner: Program::authenticated_transfer_program().id(),
+        balance: u128::MAX,
+        ..Account::default()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     #![expect(
@@ -389,7 +404,7 @@ pub mod tests {
     };
 
     use crate::{
-        PublicKey, PublicTransaction, V03State,
+        PublicKey, PublicTransaction, SYSTEM_FAUCET_ACCOUNT_ID, V03State,
         error::{InvalidProgramBehaviorError, NssaError},
         execute_and_prove,
         privacy_preserving_transaction::{
@@ -403,7 +418,7 @@ pub mod tests {
         signature::PrivateKey,
         state::{
             CLOCK_01_PROGRAM_ACCOUNT_ID, CLOCK_10_PROGRAM_ACCOUNT_ID, CLOCK_50_PROGRAM_ACCOUNT_ID,
-            CLOCK_PROGRAM_ACCOUNT_IDS, MAX_NUMBER_CHAINED_CALLS,
+            CLOCK_PROGRAM_ACCOUNT_IDS, MAX_NUMBER_CHAINED_CALLS, system_faucet_account,
         },
     };
 
@@ -597,6 +612,7 @@ pub mod tests {
                     ..Account::default()
                 },
             );
+            this.insert(SYSTEM_FAUCET_ACCOUNT_ID, system_faucet_account());
             for account_id in CLOCK_PROGRAM_ACCOUNT_IDS {
                 this.insert(
                     account_id,
@@ -619,6 +635,7 @@ pub mod tests {
             this.insert(Program::token().id(), Program::token());
             this.insert(Program::amm().id(), Program::amm());
             this.insert(Program::ata().id(), Program::ata());
+            this.insert(Program::vault().id(), Program::vault());
             this
         };
 

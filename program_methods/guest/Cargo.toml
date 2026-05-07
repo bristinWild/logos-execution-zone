@@ -17,5 +17,6 @@ amm_core.workspace = true
 amm_program.workspace = true
 ata_core.workspace = true
 ata_program.workspace = true
+vault_core.workspace = true
 risc0-zkvm.workspace = true
 serde = { workspace = true, default-features = false }

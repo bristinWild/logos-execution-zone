@@ -18,13 +18,13 @@
     "indexer_rpc_url": "ws://indexer_service:8779",
     "genesis": [
         {
-            "supply_public_account": {
+            "supply_account": {
                 "account_id": "6iArKUXxhUJqS7kCaPNhwMWt3ro71PDyBj7jwAyE2VQV",
                 "balance": 10000
             }
         },
         {
-            "supply_public_account": {
+            "supply_account": {
                 "account_id": "7wHg9sbJwc6h3NP1S9bekfAzB8CHifEcxKswCKUt3YQo",
                 "balance": 20000
             }

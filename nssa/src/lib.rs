@@ -4,7 +4,7 @@
 )]
 
 pub use nssa_core::{
-    GENESIS_BLOCK_ID, SharedSecretKey,
+    GENESIS_BLOCK_ID, SYSTEM_FAUCET_ACCOUNT_ID, SharedSecretKey,
     account::{Account, AccountId, Data},
     encryption::EphemeralPublicKey,
     program::ProgramId,

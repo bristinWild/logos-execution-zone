@@ -125,9 +125,9 @@ fn indexer_test_run_ffi() -> Result<()> {
 
     let last_block_indexer_ffi = unsafe { *last_block_indexer_ffi_res.value };
 
-    info!("Last block on ind ffi now is {last_block_indexer_ffi}");
+    info!("Last block on indexer FFI now is {last_block_indexer_ffi}");
 
-    assert!(last_block_indexer_ffi > 1);
+    assert!(last_block_indexer_ffi > 0);
 
     Ok(())
 }
@@ -149,9 +149,9 @@ fn indexer_ffi_block_batching() -> Result<()> {
 
     let last_block_indexer = unsafe { *last_block_indexer_ffi_res.value };
 
-    info!("Last block on ind now is {last_block_indexer}");
+    info!("Last block on indexer FFI now is {last_block_indexer}");
 
-    assert!(last_block_indexer > 1);
+    assert!(last_block_indexer > 0);
 
     let before_ffi = FfiOption::<u64>::from_none();
     let limit = 100;

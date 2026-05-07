@@ -6,15 +6,13 @@ use common::{
     block::{BedrockStatus, Block, HashableBlockData},
     transaction::{NSSATransaction, clock_invocation},
 };
-use config::{GenesisTransaction, SequencerConfig};
+use config::{GenesisAction, SequencerConfig};
 use log::{error, info, warn};
 use logos_blockchain_key_management_system_service::keys::{ED25519_SECRET_KEY_SIZE, Ed25519Key};
 use mempool::{MemPool, MemPoolHandle};
 #[cfg(feature = "mock")]
 pub use mock::SequencerCoreWithMockClients;
-use nssa::{
-    AccountId, PublicTransaction, ValidatedStateDiff, program::Program, public_transaction::Message,
-};
+use nssa::{AccountId, PublicTransaction, program::Program, public_transaction::Message};
 use nssa_core::GENESIS_BLOCK_ID;
 pub use storage::error::DbError;
 
@@ -363,49 +361,47 @@ fn build_genesis_state(config: &SequencerConfig) -> (nssa::V03State, Vec<NSSATra
     #[cfg(feature = "testnet")]
     let mut state = testnet_initial_state::initial_state_testnet();
 
-    let mut genesis_txs = Vec::new();
-
-    for genesis_tx in &config.genesis {
-        let (tx, diff) = match genesis_tx {
-            GenesisTransaction::SupplyPublicAccount {
+    let genesis_txs = config
+        .genesis
+        .iter()
+        .map(|genesis_tx| match genesis_tx {
+            GenesisAction::SupplyAccount {
                 account_id,
                 balance,
-            } => build_supply_public_account_genesis_transaction(&state, account_id, *balance),
-        };
-        state.apply_state_diff(diff);
-        genesis_txs.push(tx);
-    }
-
-    let clock_tx = clock_invocation(0);
-    let diff = ValidatedStateDiff::from_public_transaction(&clock_tx, &state, GENESIS_BLOCK_ID, 0)
-        .expect("Failed to execute clock transaction for genesis block");
-    state.apply_state_diff(diff);
-    genesis_txs.push(clock_tx.into());
+            } => build_supply_account_genesis_transaction(account_id, *balance),
+        })
+        .chain(std::iter::once(clock_invocation(0)))
+        .inspect(|tx| {
+            state
+                .transition_from_public_transaction(tx, GENESIS_BLOCK_ID, 0)
+                .expect("Failed to execute genesis transaction");
+        })
+        .map(NSSATransaction::Public)
+        .collect();
 
     (state, genesis_txs)
 }
 
-fn build_supply_public_account_genesis_transaction(
-    state: &nssa::V03State,
+fn build_supply_account_genesis_transaction(
     account_id: &AccountId,
     balance: u128,
-) -> (NSSATransaction, ValidatedStateDiff) {
-    let authenticated_transfer_id = Program::authenticated_transfer_program().id();
+) -> PublicTransaction {
+    let vault_program_id = Program::vault().id();
+    let recipient_vault_id = vault_core::compute_vault_account_id(vault_program_id, *account_id);
 
     let message = Message::try_new(
-        authenticated_transfer_id,
-        vec![*account_id, nssa::CLOCK_01_PROGRAM_ACCOUNT_ID],
+        vault_program_id,
+        vec![nssa::SYSTEM_FAUCET_ACCOUNT_ID, recipient_vault_id],
         vec![],
-        authenticated_transfer_core::Instruction::Mint { amount: balance },
+        vault_core::Instruction::Transfer {
+            recipient_id: *account_id,
+            amount: balance,
+        },
     )
-    .expect("Failed to serialize genesis mint instruction");
-    let witness_set = nssa::public_transaction::WitnessSet::for_message(&message, &[]);
+    .expect("Failed to serialize genesis transfer instruction");
+    let witness_set = nssa::public_transaction::WitnessSet::from_raw_parts(vec![]);
 
-    let tx = PublicTransaction::new(message, witness_set);
-    let diff = ValidatedStateDiff::from_public_genesis_transaction(&tx, state)
-        .expect("Failed to execute genesis mint public transaction");
-
-    (tx.into(), diff)
+    PublicTransaction::new(message, witness_set)
 }
 
 /// Load signing key from file or generate a new one if it doesn't exist.

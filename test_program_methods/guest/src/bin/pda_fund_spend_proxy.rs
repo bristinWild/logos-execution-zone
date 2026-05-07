@@ -53,7 +53,8 @@ fn main() {
 
     let chained_call = ChainedCall {
         program_id: auth_transfer_id,
-        instruction_data: to_vec(&amount).unwrap(),
+        instruction_data: to_vec(&authenticated_transfer_core::Instruction::Transfer { amount })
+            .unwrap(),
         pre_states: chained_pre_states,
         pda_seeds: vec![seed],
     };

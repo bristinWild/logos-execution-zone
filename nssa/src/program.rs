@@ -11,7 +11,7 @@ use crate::{
     program_methods::{
         AMM_ELF, AMM_ID, ASSOCIATED_TOKEN_ACCOUNT_ELF, ASSOCIATED_TOKEN_ACCOUNT_ID,
         AUTHENTICATED_TRANSFER_ELF, AUTHENTICATED_TRANSFER_ID, CLOCK_ELF, CLOCK_ID, PINATA_ELF,
-        PINATA_ID, TOKEN_ELF, TOKEN_ID,
+        PINATA_ID, TOKEN_ELF, TOKEN_ID, VAULT_ELF, VAULT_ID,
     },
 };
 
@@ -148,6 +148,14 @@ impl Program {
             elf: ASSOCIATED_TOKEN_ACCOUNT_ELF.to_vec(),
         }
     }
+
+    #[must_use]
+    pub fn vault() -> Self {
+        Self {
+            id: VAULT_ID,
+            elf: VAULT_ELF.to_vec(),
+        }
+    }
 }
 
 // TODO: Testnet only. Refactor to prevent compilation on mainnet.
@@ -179,7 +187,7 @@ mod tests {
         program_methods::{
             AMM_ELF, AMM_ID, ASSOCIATED_TOKEN_ACCOUNT_ELF, ASSOCIATED_TOKEN_ACCOUNT_ID,
             AUTHENTICATED_TRANSFER_ELF, AUTHENTICATED_TRANSFER_ID, CLOCK_ELF, CLOCK_ID, PINATA_ELF,
-            PINATA_ID, PINATA_TOKEN_ELF, PINATA_TOKEN_ID, TOKEN_ELF, TOKEN_ID,
+            PINATA_ID, PINATA_TOKEN_ELF, PINATA_TOKEN_ID, TOKEN_ELF, TOKEN_ID, VAULT_ELF, VAULT_ID,
         },
     };
 
@@ -492,12 +500,15 @@ mod tests {
     fn builtin_programs() {
         let auth_transfer_program = Program::authenticated_transfer_program();
         let token_program = Program::token();
+        let vault_program = Program::vault();
         let pinata_program = Program::pinata();
 
         assert_eq!(auth_transfer_program.id, AUTHENTICATED_TRANSFER_ID);
         assert_eq!(auth_transfer_program.elf, AUTHENTICATED_TRANSFER_ELF);
         assert_eq!(token_program.id, TOKEN_ID);
         assert_eq!(token_program.elf, TOKEN_ELF);
+        assert_eq!(vault_program.id, VAULT_ID);
+        assert_eq!(vault_program.elf, VAULT_ELF);
         assert_eq!(pinata_program.id, PINATA_ID);
         assert_eq!(pinata_program.elf, PINATA_ELF);
     }
@@ -512,6 +523,7 @@ mod tests {
             (PINATA_ELF, PINATA_ID),
             (PINATA_TOKEN_ELF, PINATA_TOKEN_ID),
             (TOKEN_ELF, TOKEN_ID),
+            (VAULT_ELF, VAULT_ID),
         ];
         for (elf, expected_id) in cases {
             let program = Program::new(elf.to_vec()).unwrap();

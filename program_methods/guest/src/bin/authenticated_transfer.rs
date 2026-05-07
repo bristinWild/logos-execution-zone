@@ -1,6 +1,6 @@
 use authenticated_transfer_core::Instruction;
-use clock_core::{CLOCK_01_PROGRAM_ACCOUNT_ID, ClockAccountData};
 use nssa_core::{
+    SYSTEM_FAUCET_ACCOUNT_ID,
     account::{Account, AccountWithMetadata},
     program::{
         AccountPostState, Claim, DEFAULT_PROGRAM_ID, ProgramInput, ProgramOutput, read_nssa_inputs,
@@ -27,7 +27,12 @@ fn transfer(
     balance_to_move: u128,
 ) -> Vec<AccountPostState> {
     // Continue only if the sender has authorized this operation
-    assert!(sender.is_authorized, "Sender must be authorized");
+    // or it's the system faucet account which is allowed without authorization as it may be used
+    // only by sequencer.
+    assert!(
+        sender.is_authorized || sender.account_id == SYSTEM_FAUCET_ACCOUNT_ID,
+        "Sender must be authorized"
+    );
 
     // Create accounts post states, with updated balances
     let sender_post = {
@@ -59,39 +64,6 @@ fn transfer(
     vec![sender_post, recipient_post]
 }
 
-/// Mints `balance` into a new account at genesis (`block_id` == 0).
-///
-/// Claims the target account and sets its balance in a single operation.
-fn mint(
-    target: AccountWithMetadata,
-    clock: AccountWithMetadata,
-    balance: u128,
-) -> Vec<AccountPostState> {
-    assert_eq!(
-        clock.account_id, CLOCK_01_PROGRAM_ACCOUNT_ID,
-        "Second account must be the clock account"
-    );
-
-    let clock_data = ClockAccountData::from_bytes(&clock.account.data.clone().into_inner());
-    assert_eq!(
-        clock_data.block_id, 0,
-        "Mint can only execute at genesis (block_id must be 0)"
-    );
-
-    assert!(
-        target.account == Account::default(),
-        "Target account must be uninitialized"
-    );
-
-    let mut target_post_account = target.account;
-    target_post_account.balance = balance;
-    let target_post = AccountPostState::new_claimed(target_post_account, Claim::Authorized);
-
-    let clock_post = AccountPostState::new(clock.account);
-
-    vec![target_post, clock_post]
-}
-
 /// A transfer of balance program.
 /// To be used both in public and private contexts.
 fn main() {
@@ -118,11 +90,6 @@ fn main() {
             let [sender, recipient] = <[_; 2]>::try_from(pre_states.clone())
                 .expect("Transfer requires exactly 2 accounts");
             transfer(sender, recipient, balance_to_move)
-        }
-        Instruction::Mint { amount: balance } => {
-            let [target, clock] = <[_; 2]>::try_from(pre_states.clone())
-                .expect("Mint requires exactly 2 accounts: target, clock");
-            mint(target, clock, balance)
         }
     };
 

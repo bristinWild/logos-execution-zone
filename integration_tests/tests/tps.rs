@@ -28,7 +28,7 @@ use nssa_core::{
     account::{AccountWithMetadata, Nonce, data::Data},
     encryption::ViewingPublicKey,
 };
-use sequencer_core::config::GenesisTransaction;
+use sequencer_core::config::GenesisAction;
 use sequencer_service_rpc::RpcClient as _;
 use tokio::test;
 
@@ -94,10 +94,10 @@ impl TpsTestManager {
     /// Generates a sequencer configuration with initial balance in a number of public accounts.
     /// The transactions generated with the function `build_public_txs` will be valid in a node
     /// started with the config from this method.
-    fn generate_genesis(&self) -> Vec<GenesisTransaction> {
+    fn generate_genesis(&self) -> Vec<GenesisAction> {
         self.public_keypairs
             .iter()
-            .map(|(_, account_id)| GenesisTransaction::SupplyPublicAccount {
+            .map(|(_, account_id)| GenesisAction::SupplyAccount {
                 account_id: *account_id,
                 balance: 10,
             })

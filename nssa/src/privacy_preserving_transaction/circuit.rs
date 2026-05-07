@@ -597,7 +597,11 @@ mod tests {
         let recipient = AccountWithMetadata::new(Account::default(), false, shared_account_id);
 
         let balance_to_move: u128 = 100;
-        let instruction = Program::serialize_instruction(balance_to_move).unwrap();
+        let instruction =
+            Program::serialize_instruction(authenticated_transfer_core::Instruction::Transfer {
+                amount: balance_to_move,
+            })
+            .unwrap();
 
         let result = execute_and_prove(
             vec![sender, recipient],
@@ -631,7 +635,8 @@ mod tests {
 
         let (output, _) = execute_and_prove(
             vec![pre],
-            Program::serialize_instruction(0_u128).unwrap(),
+            Program::serialize_instruction(authenticated_transfer_core::Instruction::Initialize)
+                .unwrap(),
             vec![InputAccountIdentity::PrivateAuthorizedInit {
                 ssk,
                 nsk: keys.nsk,
@@ -670,7 +675,10 @@ mod tests {
 
         let (output, _) = execute_and_prove(
             vec![sender, recipient],
-            Program::serialize_instruction(1_u128).unwrap(),
+            Program::serialize_instruction(authenticated_transfer_core::Instruction::Transfer {
+                amount: 1,
+            })
+            .unwrap(),
             vec![
                 InputAccountIdentity::Public,
                 InputAccountIdentity::PrivateUnauthorized {
@@ -712,7 +720,10 @@ mod tests {
 
         let (output, _) = execute_and_prove(
             vec![sender, recipient],
-            Program::serialize_instruction(1_u128).unwrap(),
+            Program::serialize_instruction(authenticated_transfer_core::Instruction::Transfer {
+                amount: 1,
+            })
+            .unwrap(),
             vec![
                 InputAccountIdentity::PrivateAuthorizedUpdate {
                     ssk,

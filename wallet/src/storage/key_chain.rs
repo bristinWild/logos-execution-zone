@@ -330,7 +330,14 @@ impl UserKeyChain {
         kind: PrivateAccountKind,
         account: nssa_core::account::Account,
     ) -> Result<()> {
-        // First try to update imported account
+        // Try to find in shared accounts
+        if let Some(entry) = self.shared_private_accounts.get_mut(&account_id) {
+            debug!("Updating shared private account {account_id}");
+            entry.account = account;
+            return Ok(());
+        }
+
+        // Then try to update imported account
         for (key, data) in &mut self.imported_private_accounts {
             for (kind, imported_account) in &mut data.accounts {
                 let expected_id =
@@ -540,7 +547,7 @@ impl UserKeyChain {
                     PersistentAccountDataPrivate {
                         account_id: *account_id,
                         chain_index: key.clone(),
-                        data: data.clone(),
+                        data: data.clone().into(),
                     },
                 )));
             }
@@ -621,7 +628,7 @@ impl UserKeyChain {
             _ => unreachable!(),
         });
         let mut private_key_tree = KeyTreePrivate::new_from_root(match private_root {
-            PersistentAccountData::Private(data) => data.data,
+            PersistentAccountData::Private(data) => data.data.into(),
             _ => unreachable!(),
         });
 
@@ -631,7 +638,7 @@ impl UserKeyChain {
                     public_key_tree.insert(data.account_id, data.chain_index, data.data);
                 }
                 PersistentAccountData::Private(data) => {
-                    private_key_tree.insert(data.account_id, data.chain_index, data.data);
+                    private_key_tree.insert(data.account_id, data.chain_index, data.data.into());
                 }
                 PersistentAccountData::ImportedPublic(data) => {
                     imported_public_accounts.insert(data.account_id, data.pub_sign_key);
