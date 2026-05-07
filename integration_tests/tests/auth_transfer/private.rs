@@ -160,10 +160,6 @@ async fn private_transfer_to_owned_account_using_claiming_path() -> Result<()> {
 
     // Create a new private account
     let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-        for_gms: None,
-        pda: false,
-        seed: None,
-        program_id: None,
         cci: None,
         label: None,
     }));
@@ -332,10 +328,6 @@ async fn private_transfer_to_owned_account_continuous_run_path() -> Result<()> {
 
     // Create a new private account
     let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-        for_gms: None,
-        pda: false,
-        seed: None,
-        program_id: None,
         cci: None,
         label: None,
     }));
@@ -401,10 +393,6 @@ async fn initialize_private_account() -> Result<()> {
     let mut ctx = TestContext::new().await?;
 
     let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-        for_gms: None,
-        pda: false,
-        seed: None,
-        program_id: None,
         cci: None,
         label: None,
     }));
@@ -505,10 +493,6 @@ async fn initialize_private_account_using_label() -> Result<()> {
     // Create a new private account with a label
     let label = "init-private-label".to_owned();
     let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-        for_gms: None,
-        pda: false,
-        seed: None,
-        program_id: None,
         cci: None,
         label: Some(label.clone()),
     }));

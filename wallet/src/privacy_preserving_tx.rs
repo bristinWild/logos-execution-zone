@@ -31,8 +31,8 @@ pub enum PrivacyPreservingAccount {
         seed: PdaSeed,
     },
     /// A shared regular private account with externally-provided keys (e.g. from GMS).
-    /// Uses standard `AccountId = from((&npk, identifier))` and mask 1/2.
-    /// Works with `authenticated_transfer` and all existing programs out of the box.
+    /// Uses standard `AccountId = from((&npk, identifier))` with authorized/unauthorized private
+    /// paths. Works with `authenticated_transfer` and all existing programs out of the box.
     PrivateShared {
         nsk: NullifierSecretKey,
         npk: NullifierPublicKey,
@@ -335,8 +335,7 @@ async fn private_pda_preparation(
     let acc = wallet
         .storage
         .user_data
-        .shared_private_accounts
-        .get(&account_id)
+        .shared_private_account(&account_id)
         .map(|e| e.account.clone())
         .unwrap_or_default();
 
@@ -386,8 +385,7 @@ async fn private_shared_preparation(
     let acc = wallet
         .storage
         .user_data
-        .shared_private_accounts
-        .get(&account_id)
+        .shared_private_account(&account_id)
         .map(|e| e.account.clone())
         .unwrap_or_default();
 

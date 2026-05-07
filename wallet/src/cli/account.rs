@@ -83,19 +83,23 @@ pub enum NewSubcommand {
         label: Option<String>,
     },
     /// Single-account convenience: creates a key node and auto-registers one account with a random
-    /// identifier. When `--for-gms` is provided, derives keys from the named group instead of
-    /// the wallet's key tree.
+    /// identifier.
     Private {
         #[arg(long)]
-        /// Chain index of a parent node (ignored when --for-gms is used).
+        /// Chain index of a parent node.
         cci: Option<ChainIndex>,
         #[arg(short, long)]
         /// Label to assign to the new account.
         label: Option<String>,
+    },
+    /// Create a shared private account from a group's GMS.
+    PrivateGms {
+        /// Group name to derive keys from.
+        group: String,
+        #[arg(short, long)]
+        /// Label to assign to the new account.
+        label: Option<String>,
         #[arg(long)]
-        /// Derive keys from a group's GMS instead of the wallet tree.
-        for_gms: Option<String>,
-        #[arg(long, requires = "for_gms")]
         /// Create a PDA account (requires --seed and --program-id).
         pda: bool,
         #[arg(long, requires = "pda")]
@@ -157,10 +161,50 @@ impl WalletSubcommand for NewSubcommand {
 
                 Ok(SubcommandReturnValue::RegisterAccount { account_id })
             }
-            Self::Private {
-                cci,
+            Self::Private { cci, label } => {
+                if let Some(label) = &label
+                    && wallet_core
+                        .storage
+                        .labels
+                        .values()
+                        .any(|l| l.to_string() == *label)
+                {
+                    anyhow::bail!("Label '{label}' is already in use by another account");
+                }
+
+                let (account_id, chain_index) = wallet_core.create_new_account_private(cci);
+
+                let node = wallet_core
+                    .storage
+                    .user_data
+                    .private_key_tree
+                    .key_map
+                    .get(&chain_index)
+                    .expect("Node was just inserted");
+                let key = &node.value.0;
+
+                if let Some(label) = label {
+                    wallet_core
+                        .storage
+                        .labels
+                        .insert(account_id.to_string(), Label::new(label));
+                }
+
+                println!(
+                    "Generated new account with account_id Private/{account_id} at path {chain_index}"
+                );
+                println!("With npk {}", hex::encode(key.nullifier_public_key.0));
+                println!(
+                    "With vpk {}",
+                    hex::encode(key.viewing_public_key.to_bytes())
+                );
+
+                wallet_core.store_persistent_data().await?;
+                Ok(SubcommandReturnValue::RegisterAccount { account_id })
+            }
+            Self::PrivateGms {
+                group,
                 label,
-                for_gms,
                 pda,
                 seed,
                 program_id,
@@ -175,80 +219,47 @@ impl WalletSubcommand for NewSubcommand {
                     anyhow::bail!("Label '{label}' is already in use by another account");
                 }
 
-                if let Some(group_name) = for_gms {
-                    let info = if pda {
-                        let seed_hex = seed.context("--seed is required for PDA accounts")?;
-                        let pid_hex =
-                            program_id.context("--program-id is required for PDA accounts")?;
+                let info = if pda {
+                    let seed_hex = seed.context("--seed is required for PDA accounts")?;
+                    let pid_hex =
+                        program_id.context("--program-id is required for PDA accounts")?;
 
-                        let seed_bytes: [u8; 32] = hex::decode(&seed_hex)
-                            .context("Invalid seed hex")?
-                            .try_into()
-                            .map_err(|_err| anyhow::anyhow!("Seed must be exactly 32 bytes"))?;
-                        let pda_seed = nssa_core::program::PdaSeed::new(seed_bytes);
+                    let seed_bytes: [u8; 32] = hex::decode(&seed_hex)
+                        .context("Invalid seed hex")?
+                        .try_into()
+                        .map_err(|_err| anyhow::anyhow!("Seed must be exactly 32 bytes"))?;
+                    let pda_seed = nssa_core::program::PdaSeed::new(seed_bytes);
 
-                        let pid_bytes = hex::decode(&pid_hex).context("Invalid program ID hex")?;
-                        if pid_bytes.len() != 32 {
-                            anyhow::bail!("Program ID must be exactly 32 bytes");
-                        }
-                        let mut pid: nssa_core::program::ProgramId = [0; 8];
-                        for (i, chunk) in pid_bytes.chunks_exact(4).enumerate() {
-                            pid[i] = u32::from_le_bytes(chunk.try_into().unwrap());
-                        }
-
-                        wallet_core.create_shared_pda_account(&group_name, pda_seed, pid)?
-                    } else {
-                        wallet_core.create_shared_regular_account(&group_name)?
-                    };
-
-                    if let Some(label) = label {
-                        wallet_core
-                            .storage
-                            .labels
-                            .insert(info.account_id.to_string(), Label::new(label));
+                    let pid_bytes = hex::decode(&pid_hex).context("Invalid program ID hex")?;
+                    if pid_bytes.len() != 32 {
+                        anyhow::bail!("Program ID must be exactly 32 bytes");
+                    }
+                    let mut pid: nssa_core::program::ProgramId = [0; 8];
+                    for (i, chunk) in pid_bytes.chunks_exact(4).enumerate() {
+                        pid[i] = u32::from_le_bytes(chunk.try_into().unwrap());
                     }
 
-                    println!("Shared account from group '{group_name}'");
-                    println!("AccountId: Private/{}", info.account_id);
-                    println!("NPK: {}", hex::encode(info.npk.0));
-                    println!("VPK: {}", hex::encode(&info.vpk.0));
-
-                    wallet_core.store_persistent_data().await?;
-                    Ok(SubcommandReturnValue::RegisterAccount {
-                        account_id: info.account_id,
-                    })
+                    wallet_core.create_shared_pda_account(&group, pda_seed, pid)?
                 } else {
-                    // Standard wallet-tree-derived account
-                    let (account_id, chain_index) = wallet_core.create_new_account_private(cci);
+                    wallet_core.create_shared_regular_account(&group)?
+                };
 
-                    let node = wallet_core
+                if let Some(label) = label {
+                    wallet_core
                         .storage
-                        .user_data
-                        .private_key_tree
-                        .key_map
-                        .get(&chain_index)
-                        .expect("Node was just inserted");
-                    let key = &node.value.0;
-
-                    if let Some(label) = label {
-                        wallet_core
-                            .storage
-                            .labels
-                            .insert(account_id.to_string(), Label::new(label));
-                    }
-
-                    println!(
-                        "Generated new account with account_id Private/{account_id} at path {chain_index}"
-                    );
-                    println!("With npk {}", hex::encode(key.nullifier_public_key.0));
-                    println!(
-                        "With vpk {}",
-                        hex::encode(key.viewing_public_key.to_bytes())
-                    );
-
-                    wallet_core.store_persistent_data().await?;
-                    Ok(SubcommandReturnValue::RegisterAccount { account_id })
+                        .labels
+                        .insert(info.account_id.to_string(), Label::new(label));
                 }
+
+                println!("Shared account from group '{group}'");
+                println!("AccountId: Private/{}", info.account_id);
+                println!("NPK: {}", hex::encode(info.npk.0));
+                println!("VPK: {}", hex::encode(&info.vpk.0));
+
+                wallet_core.store_persistent_data().await?;
+                Ok(SubcommandReturnValue::RegisterAccount {
+                    account_id: info.account_id,
+                })
             }
             Self::PrivateAccountsKey { cci } => {
                 let chain_index = wallet_core.create_private_accounts_key(cci);

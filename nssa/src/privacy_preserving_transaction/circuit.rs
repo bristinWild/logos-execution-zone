@@ -420,7 +420,7 @@ mod tests {
 
     /// PDA init: initializes a new PDA under `authenticated_transfer`'s ownership.
     /// The `private_pda_spender` program chains to `authenticated_transfer` with `pda_seeds`
-    /// to establish authorization and the mask-3 binding.
+    /// to establish authorization and the private PDA binding.
     #[test]
     fn private_pda_init() {
         let program = Program::private_pda_spender();
@@ -430,7 +430,7 @@ mod tests {
         let seed = PdaSeed::new([42; 32]);
         let shared_secret_pda = SharedSecretKey::new(&[55; 32], &keys.vpk());
 
-        // PDA (new, mask 3) — AccountId derived from private_pda_spender's program ID
+        // PDA (new, private PDA) — AccountId derived from private_pda_spender's program ID
         let pda_id = AccountId::for_private_pda(&program.id(), &seed, &npk);
         let pda_pre = AccountWithMetadata::new(Account::default(), false, pda_id);
 
@@ -467,11 +467,11 @@ mod tests {
         let seed = PdaSeed::new([42; 32]);
         let shared_secret_pda = SharedSecretKey::new(&[55; 32], &keys.vpk());
 
-        // PDA (new, mask 3)
+        // PDA (new, private PDA)
         let pda_id = AccountId::for_private_pda(&program.id(), &seed, &npk);
         let pda_pre = AccountWithMetadata::new(Account::default(), false, pda_id);
 
-        // Recipient (mask 0, public)
+        // Recipient (public)
         let recipient_id = AccountId::new([88; 32]);
         let recipient_pre = AccountWithMetadata::new(
             Account {
@@ -510,7 +510,7 @@ mod tests {
     /// Shared regular private account: receives funds via `authenticated_transfer` directly,
     /// no custom program needed. This demonstrates the non-PDA shared account flow where
     /// keys are derived from GMS via `derive_keys_for_shared_account`. The shared account
-    /// uses standard mask 2 (new unauthorized private) and works with auth-transfer's
+    /// uses the standard unauthorized private account path and works with auth-transfer's
     /// transfer path like any other private account.
     #[test]
     fn shared_account_receives_via_auth_transfer() {
@@ -532,7 +532,7 @@ mod tests {
             sender_id,
         );
 
-        // Recipient: shared private account (new, unauthorized, mask 2)
+        // Recipient: shared private account (new, unauthorized)
         let shared_account_id = AccountId::from((&shared_npk, shared_identifier));
         let recipient = AccountWithMetadata::new(Account::default(), false, shared_account_id);
 

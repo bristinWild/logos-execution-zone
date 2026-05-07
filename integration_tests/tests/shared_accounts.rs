@@ -45,10 +45,9 @@ async fn group_create_and_shared_account_registration() -> Result<()> {
     );
 
     // Create a shared regular private account from the group
-    let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-        cci: None,
+    let command = Command::Account(AccountSubcommand::New(NewSubcommand::PrivateGms {
+        group: "test-group".to_string(),
         label: Some("shared-acc".to_string()),
-        for_gms: Some("test-group".to_string()),
         pda: false,
         seed: None,
         program_id: None,
@@ -63,9 +62,11 @@ async fn group_create_and_shared_account_registration() -> Result<()> {
     };
 
     // Verify shared account is registered in storage
-    let shared_private_accounts = &ctx.wallet().storage().user_data.shared_private_accounts;
-    let entry = shared_private_accounts
-        .get(&shared_account_id)
+    let entry = ctx
+        .wallet()
+        .storage()
+        .user_data
+        .shared_private_account(&shared_account_id)
         .context("Shared account not found in storage")?;
     assert_eq!(entry.group_label, "test-group");
     assert!(entry.pda_seed.is_none());
@@ -143,10 +144,9 @@ async fn fund_shared_account_from_public() -> Result<()> {
     });
     wallet::cli::execute_subcommand(ctx.wallet_mut(), command).await?;
 
-    let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-        cci: None,
+    let command = Command::Account(AccountSubcommand::New(NewSubcommand::PrivateGms {
+        group: "fund-group".to_string(),
         label: None,
-        for_gms: Some("fund-group".to_string()),
         pda: false,
         seed: None,
         program_id: None,
@@ -193,8 +193,7 @@ async fn fund_shared_account_from_public() -> Result<()> {
         .wallet()
         .storage()
         .user_data
-        .shared_private_accounts
-        .get(&shared_id)
+        .shared_private_account(&shared_id)
         .context("Shared account not found after sync")?;
 
     info!(

@@ -30,10 +30,6 @@ async fn sync_private_account_with_non_zero_chain_index() -> Result<()> {
 
     // Create a new private account
     let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-        for_gms: None,
-        pda: false,
-        seed: None,
-        program_id: None,
         cci: None,
         label: None,
     }));
@@ -44,10 +40,6 @@ async fn sync_private_account_with_non_zero_chain_index() -> Result<()> {
         let result = wallet::cli::execute_subcommand(
             ctx.wallet_mut(),
             Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-                for_gms: None,
-                pda: false,
-                seed: None,
-                program_id: None,
                 cci: None,
                 label: None,
             })),
@@ -127,10 +119,6 @@ async fn restore_keys_from_seed() -> Result<()> {
 
     // Create first private account at root
     let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-        for_gms: None,
-        pda: false,
-        seed: None,
-        program_id: None,
         cci: Some(ChainIndex::root()),
         label: None,
     }));
@@ -144,10 +132,6 @@ async fn restore_keys_from_seed() -> Result<()> {
 
     // Create second private account at /0
     let command = Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-        for_gms: None,
-        pda: false,
-        seed: None,
-        program_id: None,
         cci: Some(ChainIndex::from_str("/0")?),
         label: None,
     }));

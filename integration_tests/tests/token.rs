@@ -297,10 +297,6 @@ async fn create_and_transfer_token_with_private_supply() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),
@@ -317,10 +313,6 @@ async fn create_and_transfer_token_with_private_supply() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),
@@ -468,10 +460,6 @@ async fn create_token_with_private_definition() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: Some(ChainIndex::root()),
             label: None,
         })),
@@ -544,10 +532,6 @@ async fn create_token_with_private_definition() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),
@@ -678,10 +662,6 @@ async fn create_token_with_private_definition_and_supply() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),
@@ -698,10 +678,6 @@ async fn create_token_with_private_definition_and_supply() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),
@@ -764,10 +740,6 @@ async fn create_token_with_private_definition_and_supply() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),
@@ -883,10 +855,6 @@ async fn shielded_token_transfer() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),
@@ -998,10 +966,6 @@ async fn deshielded_token_transfer() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),
@@ -1113,10 +1077,6 @@ async fn token_claiming_path_with_private_accounts() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),
@@ -1133,10 +1093,6 @@ async fn token_claiming_path_with_private_accounts() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),
@@ -1170,10 +1126,6 @@ async fn token_claiming_path_with_private_accounts() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),

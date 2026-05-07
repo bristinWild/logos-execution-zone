@@ -36,7 +36,7 @@ pub struct SharedAccountEntry {
     pub account: Account,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct NSSAUserData {
     /// Default public accounts.
     pub default_pub_account_signing_keys: BTreeMap<nssa::AccountId, nssa::PrivateKey>,
@@ -46,17 +46,11 @@ pub struct NSSAUserData {
     pub public_key_tree: KeyTreePublic,
     /// Tree of private keys.
     pub private_key_tree: KeyTreePrivate,
-    /// Group key holders for private PDA groups, keyed by a human-readable label.
-    /// Defaults to empty for backward compatibility with wallets that predate group PDAs.
-    /// An older wallet binary that re-serializes this struct will drop the field.
-    #[serde(default)]
+    /// Group key holders for shared account management, keyed by a human-readable label.
     pub group_key_holders: BTreeMap<String, GroupKeyHolder>,
-    /// Cached plaintext state of shared accounts (PDAs and regular shared accounts),
+    /// Cached plaintext state of shared private accounts (PDAs and regular shared accounts),
     /// keyed by `AccountId`. Each entry stores the group label and identifier needed
     /// to re-derive keys during sync.
-    /// Old wallet files with `pda_accounts` (plain Account values) are incompatible with
-    /// this type. The `default` attribute ensures they deserialize as empty rather than failing.
-    #[serde(default)]
     pub shared_private_accounts: BTreeMap<nssa::AccountId, SharedAccountEntry>,
 }
 
@@ -238,6 +232,42 @@ impl NSSAUserData {
     /// GMS is lost. Callers must ensure label uniqueness across groups.
     pub fn insert_group_key_holder(&mut self, label: String, holder: GroupKeyHolder) {
         self.group_key_holders.insert(label, holder);
+    }
+
+    /// Returns the cached account for a shared private account, if it exists.
+    #[must_use]
+    pub fn shared_private_account(
+        &self,
+        account_id: &nssa::AccountId,
+    ) -> Option<&SharedAccountEntry> {
+        self.shared_private_accounts.get(account_id)
+    }
+
+    /// Inserts or replaces a shared private account entry.
+    pub fn insert_shared_private_account(
+        &mut self,
+        account_id: nssa::AccountId,
+        entry: SharedAccountEntry,
+    ) {
+        self.shared_private_accounts.insert(account_id, entry);
+    }
+
+    /// Updates the cached account state for a shared private account.
+    pub fn update_shared_private_account_state(
+        &mut self,
+        account_id: &nssa::AccountId,
+        account: nssa_core::account::Account,
+    ) {
+        if let Some(entry) = self.shared_private_accounts.get_mut(account_id) {
+            entry.account = account;
+        }
+    }
+
+    /// Iterates over all shared private accounts.
+    pub fn shared_private_accounts_iter(
+        &self,
+    ) -> impl Iterator<Item = (&nssa::AccountId, &SharedAccountEntry)> {
+        self.shared_private_accounts.iter()
     }
 }
 

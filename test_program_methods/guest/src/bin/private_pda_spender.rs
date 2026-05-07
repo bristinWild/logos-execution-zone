@@ -53,7 +53,7 @@ fn main() {
 
         // Chain to authenticated_transfer with pda_seeds to authorize the PDA.
         // The circuit's resolve_authorization_and_record_bindings establishes the
-        // mask-3 (seed, npk) binding when pda_seeds match the private PDA derivation.
+        // private PDA (seed, npk) binding when pda_seeds match the private PDA derivation.
         let mut auth_pda_pre = pda_pre;
         auth_pda_pre.is_authorized = true;
         let auth_call =

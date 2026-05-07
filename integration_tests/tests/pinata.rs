@@ -85,10 +85,6 @@ async fn claim_pinata_to_uninitialized_private_account_fails_fast() -> Result<()
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),
@@ -233,10 +229,6 @@ async fn claim_pinata_to_new_private_account() -> Result<()> {
     let result = wallet::cli::execute_subcommand(
         ctx.wallet_mut(),
         Command::Account(AccountSubcommand::New(NewSubcommand::Private {
-            for_gms: None,
-            pda: false,
-            seed: None,
-            program_id: None,
             cci: None,
             label: None,
         })),

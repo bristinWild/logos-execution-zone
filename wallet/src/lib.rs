@@ -328,7 +328,7 @@ impl WalletCore {
         pda_program_id: Option<nssa_core::program::ProgramId>,
     ) {
         use key_protocol::key_protocol_core::SharedAccountEntry;
-        self.storage.user_data.shared_private_accounts.insert(
+        self.storage.user_data.insert_shared_private_account(
             account_id,
             SharedAccountEntry {
                 group_label,
@@ -685,14 +685,12 @@ impl WalletCore {
         let shared_keys: Vec<_> = self
             .storage
             .user_data
-            .shared_private_accounts
-            .iter()
+            .shared_private_accounts_iter()
             .filter_map(|(&account_id, entry)| {
                 let holder = self
                     .storage
                     .user_data
-                    .group_key_holders
-                    .get(&entry.group_label)?;
+                    .group_key_holder(&entry.group_label)?;
 
                 let keys = match (&entry.pda_seed, &entry.pda_program_id) {
                     (Some(pda_seed), Some(program_id)) => {
@@ -743,14 +741,9 @@ impl WalletCore {
                         .expect("Ciphertext ID is expected to fit in u32"),
                 ) {
                     info!("Synced shared account {account_id:#?} with new state {new_acc:#?}");
-                    if let Some(entry) = self
-                        .storage
+                    self.storage
                         .user_data
-                        .shared_private_accounts
-                        .get_mut(&account_id)
-                    {
-                        entry.account = new_acc;
-                    }
+                        .update_shared_private_account_state(&account_id, new_acc);
                 }
             }
         }
