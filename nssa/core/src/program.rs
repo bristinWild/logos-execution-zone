@@ -112,8 +112,10 @@ impl PrivateAccountKind {
                 Some(Self::Regular(identifier))
             }
             0x01 => {
-                let program_id: ProgramId = bytemuck::try_cast_slice(&bytes[1..33])
-                    .expect("bytes are castable to &[u32]")
+                let program_id: ProgramId = bytes[1..33]
+                    .chunks_exact(4)
+                    .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+                    .collect::<Vec<_>>()
                     .try_into()
                     .expect("slice has exactly 8 u32 elements");
                 let seed = PdaSeed::new(bytes[33..65].try_into().unwrap());
