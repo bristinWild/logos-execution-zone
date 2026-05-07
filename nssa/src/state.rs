@@ -1256,6 +1256,12 @@ pub mod tests {
         }
     }
 
+    fn test_public_account_keys_2() -> TestPublicKeys {
+        TestPublicKeys {
+            signing_key: PrivateKey::try_new([38; 32]).unwrap(),
+        }
+    }
+
     pub fn test_private_account_keys_1() -> TestPrivateKeys {
         TestPrivateKeys {
             nsk: [13; 32],
@@ -4293,5 +4299,212 @@ pub mod tests {
             result.is_err(),
             "program with spoofed caller_program_id in output should be rejected"
         );
+    }
+
+    #[test]
+    fn two_private_pda_family_members_receive_and_spend() {
+        let funder_keys = test_public_account_keys_1();
+        let alice_keys = test_private_account_keys_1();
+        let alice_npk = alice_keys.npk();
+
+        let proxy = Program::auth_transfer_proxy();
+        let auth_transfer = Program::authenticated_transfer_program();
+        let proxy_id = proxy.id();
+        let auth_transfer_id = auth_transfer.id();
+        let seed = PdaSeed::new([42; 32]);
+        let amount: u128 = 100;
+
+        let program_with_deps =
+            ProgramWithDependencies::new(proxy, [(auth_transfer_id, auth_transfer)].into());
+
+        let funder_id = funder_keys.account_id();
+        let alice_pda_0_id = AccountId::for_private_pda(&proxy_id, &seed, &alice_npk, 0);
+        let alice_pda_1_id = AccountId::for_private_pda(&proxy_id, &seed, &alice_npk, 1);
+        let recipient_id = test_public_account_keys_2().account_id();
+        let recipient_signing_key = test_public_account_keys_2().signing_key;
+
+        let mut state = V03State::new_with_genesis_accounts(&[(funder_id, 500)], vec![], 0);
+
+        let alice_pda_0_account = Account {
+            program_owner: auth_transfer_id,
+            balance: amount,
+            nonce: Nonce::private_account_nonce_init(&alice_pda_0_id),
+            ..Account::default()
+        };
+        let alice_pda_1_account = Account {
+            program_owner: auth_transfer_id,
+            balance: amount,
+            nonce: Nonce::private_account_nonce_init(&alice_pda_1_id),
+            ..Account::default()
+        };
+
+        let alice_shared_0 = SharedSecretKey::new(&[10; 32], &alice_keys.vpk());
+        let alice_shared_1 = SharedSecretKey::new(&[11; 32], &alice_keys.vpk());
+
+        // Fund alice_pda_0 
+        {
+            let funder_account = state.get_account_by_id(funder_id);
+            let funder_nonce = funder_account.nonce;
+            let (output, proof) = execute_and_prove(
+                vec![
+                    AccountWithMetadata::new(funder_account, true, funder_id),
+                    AccountWithMetadata::new(Account::default(), false, alice_pda_0_id),
+                ],
+                Program::serialize_instruction((seed, amount, auth_transfer_id, true)).unwrap(),
+                vec![
+                    InputAccountIdentity::Public,
+                    InputAccountIdentity::PrivatePdaInit {
+                        npk: alice_npk,
+                        ssk: alice_shared_0.clone(),
+                        identifier: 0,
+                    },
+                ],
+                &program_with_deps,
+            )
+            .unwrap();
+            let message = Message::try_from_circuit_output(
+                vec![funder_id],
+                vec![funder_nonce],
+                vec![(alice_npk, alice_keys.vpk(), EphemeralPublicKey::from_scalar([10; 32]))],
+                output,
+            )
+            .unwrap();
+            let witness_set =
+                WitnessSet::for_message(&message, proof, &[&funder_keys.signing_key]);
+            state
+                .transition_from_privacy_preserving_transaction(
+                    &PrivacyPreservingTransaction::new(message, witness_set),
+                    1,
+                    0,
+                )
+                .unwrap();
+        }
+
+        // Fund alice_pda_1 
+        {
+            let funder_account = state.get_account_by_id(funder_id);
+            let funder_nonce = funder_account.nonce;
+            let (output, proof) = execute_and_prove(
+                vec![
+                    AccountWithMetadata::new(funder_account, true, funder_id),
+                    AccountWithMetadata::new(Account::default(), false, alice_pda_1_id),
+                ],
+                Program::serialize_instruction((seed, amount, auth_transfer_id, true)).unwrap(),
+                vec![
+                    InputAccountIdentity::Public,
+                    InputAccountIdentity::PrivatePdaInit {
+                        npk: alice_npk,
+                        ssk: alice_shared_1.clone(),
+                        identifier: 1,
+                    },
+                ],
+                &program_with_deps,
+            )
+            .unwrap();
+            let message = Message::try_from_circuit_output(
+                vec![funder_id],
+                vec![funder_nonce],
+                vec![(alice_npk, alice_keys.vpk(), EphemeralPublicKey::from_scalar([11; 32]))],
+                output,
+            )
+            .unwrap();
+            let witness_set =
+                WitnessSet::for_message(&message, proof, &[&funder_keys.signing_key]);
+            state
+                .transition_from_privacy_preserving_transaction(
+                    &PrivacyPreservingTransaction::new(message, witness_set),
+                    2,
+                    0,
+                )
+                .unwrap();
+        }
+
+        let commitment_pda_0 = Commitment::new(&alice_pda_0_id, &alice_pda_0_account);
+        let commitment_pda_1 = Commitment::new(&alice_pda_1_id, &alice_pda_1_account);
+
+        assert!(state.get_proof_for_commitment(&commitment_pda_0).is_some());
+        assert!(state.get_proof_for_commitment(&commitment_pda_1).is_some());
+
+        // Alice spends alice_pda_0 into the public recipient.
+        {
+            let recipient_account = state.get_account_by_id(recipient_id);
+            let (output, proof) = execute_and_prove(
+                vec![
+                    AccountWithMetadata::new(alice_pda_0_account, true, alice_pda_0_id),
+                    AccountWithMetadata::new(recipient_account, true, recipient_id),
+                ],
+                Program::serialize_instruction((seed, amount, auth_transfer_id, false)).unwrap(),
+                vec![
+                    InputAccountIdentity::PrivatePdaUpdate {
+                        ssk: alice_shared_0,
+                        nsk: alice_keys.nsk,
+                        membership_proof: state
+                            .get_proof_for_commitment(&commitment_pda_0)
+                            .expect("pda_0 must be in state"),
+                        identifier: 0,
+                    },
+                    InputAccountIdentity::Public,
+                ],
+                &program_with_deps,
+            )
+            .unwrap();
+            let message = Message::try_from_circuit_output(
+                vec![recipient_id],
+                vec![Nonce(0)],
+                vec![(alice_npk, alice_keys.vpk(), EphemeralPublicKey::from_scalar([10; 32]))],
+                output,
+            )
+            .unwrap();
+            let witness_set = WitnessSet::for_message(&message, proof, &[&recipient_signing_key]);
+            state
+                .transition_from_privacy_preserving_transaction(
+                    &PrivacyPreservingTransaction::new(message, witness_set),
+                    3,
+                    0,
+                )
+                .unwrap();
+        }
+
+        // Alice spends alice_pda_1 into the same public recipient.
+        {
+            let recipient_account = state.get_account_by_id(recipient_id);
+            let (output, proof) = execute_and_prove(
+                vec![
+                    AccountWithMetadata::new(alice_pda_1_account, true, alice_pda_1_id),
+                    AccountWithMetadata::new(recipient_account, false, recipient_id),
+                ],
+                Program::serialize_instruction((seed, amount, auth_transfer_id, false)).unwrap(),
+                vec![
+                    InputAccountIdentity::PrivatePdaUpdate {
+                        ssk: alice_shared_1,
+                        nsk: alice_keys.nsk,
+                        membership_proof: state
+                            .get_proof_for_commitment(&commitment_pda_1)
+                            .expect("pda_1 must be in state"),
+                        identifier: 1,
+                    },
+                    InputAccountIdentity::Public,
+                ],
+                &program_with_deps,
+            )
+            .unwrap();
+            let message = Message::try_from_circuit_output(
+                vec![recipient_id],
+                vec![],
+                vec![(alice_npk, alice_keys.vpk(), EphemeralPublicKey::from_scalar([11; 32]))],
+                output,
+            )
+            .unwrap();
+            let witness_set = WitnessSet::for_message(&message, proof, &[]);
+            state
+                .transition_from_privacy_preserving_transaction(
+                    &PrivacyPreservingTransaction::new(message, witness_set),
+                    4,
+                    0,
+                )
+                .unwrap();
+        }
+
+        assert_eq!(state.get_account_by_id(recipient_id).balance, 2 * amount);
     }
 }
