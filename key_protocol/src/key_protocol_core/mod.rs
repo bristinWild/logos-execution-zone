@@ -27,10 +27,12 @@ pub struct UserPrivateAccountData {
 pub struct SharedAccountEntry {
     pub group_label: String,
     pub identifier: Identifier,
-    /// For PDA accounts, the seed used to derive keys via `derive_keys_for_pda`.
-    /// `None` for regular shared accounts (keys derived from identifier via tag).
+    /// For PDA accounts, the seed and program ID used to derive keys via `derive_keys_for_pda`.
+    /// `None` for regular shared accounts (keys derived from identifier via derivation seed).
     #[serde(default)]
     pub pda_seed: Option<nssa_core::program::PdaSeed>,
+    #[serde(default)]
+    pub pda_program_id: Option<nssa_core::program::ProgramId>,
     pub account: Account,
 }
 
@@ -55,7 +57,7 @@ pub struct NSSAUserData {
     /// Old wallet files with `pda_accounts` (plain Account values) are incompatible with
     /// this type. The `default` attribute ensures they deserialize as empty rather than failing.
     #[serde(default)]
-    pub shared_accounts: BTreeMap<nssa::AccountId, SharedAccountEntry>,
+    pub shared_private_accounts: BTreeMap<nssa::AccountId, SharedAccountEntry>,
 }
 
 impl NSSAUserData {
@@ -115,7 +117,7 @@ impl NSSAUserData {
             public_key_tree,
             private_key_tree,
             group_key_holders: BTreeMap::new(),
-            shared_accounts: BTreeMap::new(),
+            shared_private_accounts: BTreeMap::new(),
         })
     }
 
@@ -274,7 +276,7 @@ mod tests {
     fn group_key_holders_default_empty() {
         let user_data = NSSAUserData::default();
         assert!(user_data.group_key_holders.is_empty());
-        assert!(user_data.shared_accounts.is_empty());
+        assert!(user_data.shared_private_accounts.is_empty());
     }
 
     #[test]
@@ -285,6 +287,7 @@ mod tests {
             group_label: String::from("test-group"),
             identifier: 42,
             pda_seed: None,
+            pda_program_id: None,
             account: nssa_core::account::Account::default(),
         };
         let encoded = bincode::serialize(&entry).expect("serialize");
@@ -297,6 +300,7 @@ mod tests {
             group_label: String::from("pda-group"),
             identifier: u128::MAX,
             pda_seed: Some(PdaSeed::new([7_u8; 32])),
+            pda_program_id: Some([9; 8]),
             account: nssa_core::account::Account::default(),
         };
         let pda_encoded = bincode::serialize(&pda_entry).expect("serialize pda");
@@ -315,6 +319,7 @@ mod tests {
             group_label: String::from("old"),
             identifier: 1,
             pda_seed: None,
+            pda_program_id: None,
             account: nssa_core::account::Account::default(),
         };
         let encoded = bincode::serialize(&entry).expect("serialize");
@@ -345,8 +350,8 @@ mod tests {
 
         // PDA shared account: derive via seed
         let seed = PdaSeed::new([2_u8; 32]);
-        let pda_keys_a = holder.derive_keys_for_pda(&seed);
-        let pda_keys_b = holder.derive_keys_for_pda(&seed);
+        let pda_keys_a = holder.derive_keys_for_pda(&[9; 8], &seed);
+        let pda_keys_b = holder.derive_keys_for_pda(&[9; 8], &seed);
         assert_eq!(
             pda_keys_a.generate_nullifier_public_key(),
             pda_keys_b.generate_nullifier_public_key(),

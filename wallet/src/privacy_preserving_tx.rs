@@ -335,7 +335,7 @@ async fn private_pda_preparation(
     let acc = wallet
         .storage
         .user_data
-        .shared_accounts
+        .shared_private_accounts
         .get(&account_id)
         .map(|e| e.account.clone())
         .unwrap_or_default();
@@ -386,7 +386,7 @@ async fn private_shared_preparation(
     let acc = wallet
         .storage
         .user_data
-        .shared_accounts
+        .shared_private_accounts
         .get(&account_id)
         .map(|e| e.account.clone())
         .unwrap_or_default();

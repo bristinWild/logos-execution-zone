@@ -98,6 +98,18 @@ pub struct PersistentStorage {
     /// "2rnKprXqWGWJTkDZKsQbFXa4ctKRbapsdoTKQFnaVGG8").
     #[serde(default)]
     pub labels: HashMap<String, Label>,
+    /// Group key holders for shared account management.
+    #[serde(default)]
+    pub group_key_holders: std::collections::BTreeMap<
+        String,
+        key_protocol::key_management::group_key_holder::GroupKeyHolder,
+    >,
+    /// Cached state of shared private accounts (PDA and regular).
+    #[serde(default)]
+    pub shared_private_accounts: std::collections::BTreeMap<
+        nssa::AccountId,
+        key_protocol::key_protocol_core::SharedAccountEntry,
+    >,
 }
 
 impl PersistentStorage {

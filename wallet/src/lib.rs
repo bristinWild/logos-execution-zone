@@ -51,6 +51,13 @@ pub enum AccDecodeData {
     Decode(nssa_core::SharedSecretKey, AccountId),
 }
 
+/// Info returned when creating a shared account.
+pub struct SharedAccountInfo {
+    pub account_id: AccountId,
+    pub npk: nssa_core::NullifierPublicKey,
+    pub vpk: nssa_core::encryption::ViewingPublicKey,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ExecutionFailureKind {
     #[error("Failed to get data from sequencer")]
@@ -98,6 +105,8 @@ impl WalletCore {
             accounts: persistent_accounts,
             last_synced_block,
             labels,
+            group_key_holders,
+            shared_private_accounts,
         } = PersistentStorage::from_path(&storage_path).with_context(|| {
             format!(
                 "Failed to read persistent storage at {}",
@@ -109,7 +118,12 @@ impl WalletCore {
             config_path,
             storage_path,
             config_overrides,
-            |config| WalletChainStore::new(config, persistent_accounts, labels),
+            |config| {
+                let mut store = WalletChainStore::new(config, persistent_accounts, labels)?;
+                store.user_data.group_key_holders = group_key_holders;
+                store.user_data.shared_private_accounts = shared_private_accounts;
+                Ok(store)
+            },
             last_synced_block,
         )
     }
@@ -305,23 +319,91 @@ impl WalletCore {
     }
 
     /// Register a shared account in storage for sync tracking.
-    pub fn register_shared_account(
+    fn register_shared_account(
         &mut self,
         account_id: AccountId,
         group_label: String,
         identifier: nssa_core::Identifier,
         pda_seed: Option<nssa_core::program::PdaSeed>,
+        pda_program_id: Option<nssa_core::program::ProgramId>,
     ) {
         use key_protocol::key_protocol_core::SharedAccountEntry;
-        self.storage.user_data.shared_accounts.insert(
+        self.storage.user_data.shared_private_accounts.insert(
             account_id,
             SharedAccountEntry {
                 group_label,
                 identifier,
                 pda_seed,
+                pda_program_id,
                 account: Account::default(),
             },
         );
+    }
+
+    /// Create a shared PDA account from a group's GMS. Returns the `AccountId` and derived keys.
+    pub fn create_shared_pda_account(
+        &mut self,
+        group_name: &str,
+        pda_seed: nssa_core::program::PdaSeed,
+        program_id: nssa_core::program::ProgramId,
+    ) -> Result<SharedAccountInfo> {
+        let holder = self
+            .storage
+            .user_data
+            .group_key_holder(group_name)
+            .context(format!("Group '{group_name}' not found"))?;
+
+        let keys = holder.derive_keys_for_pda(&program_id, &pda_seed);
+        let npk = keys.generate_nullifier_public_key();
+        let vpk = keys.generate_viewing_public_key();
+        let account_id = AccountId::for_private_pda(&program_id, &pda_seed, &npk);
+
+        self.register_shared_account(
+            account_id,
+            String::from(group_name),
+            u128::MAX,
+            Some(pda_seed),
+            Some(program_id),
+        );
+
+        Ok(SharedAccountInfo {
+            account_id,
+            npk,
+            vpk,
+        })
+    }
+
+    /// Create a shared regular private account from a group's GMS. Returns the `AccountId` and
+    /// derived keys. The derivation seed is computed deterministically from a random identifier.
+    pub fn create_shared_regular_account(&mut self, group_name: &str) -> Result<SharedAccountInfo> {
+        let identifier: nssa_core::Identifier = rand::random();
+        let derivation_seed = {
+            use sha2::Digest as _;
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(b"/LEE/v0.3/SharedAccountTag/\x00\x00\x00\x00\x00");
+            hasher.update(identifier.to_le_bytes());
+            let result: [u8; 32] = hasher.finalize().into();
+            result
+        };
+
+        let holder = self
+            .storage
+            .user_data
+            .group_key_holder(group_name)
+            .context(format!("Group '{group_name}' not found"))?;
+
+        let keys = holder.derive_keys_for_shared_account(&derivation_seed);
+        let npk = keys.generate_nullifier_public_key();
+        let vpk = keys.generate_viewing_public_key();
+        let account_id = AccountId::from((&npk, identifier));
+
+        self.register_shared_account(account_id, String::from(group_name), identifier, None, None);
+
+        Ok(SharedAccountInfo {
+            account_id,
+            npk,
+            vpk,
+        })
     }
 
     /// Get account balance.
@@ -596,14 +678,14 @@ impl WalletCore {
         }
 
         // Scan for updates to shared accounts (GMS-derived).
-        self.sync_shared_accounts_with_tx(&tx);
+        self.sync_shared_private_accounts_with_tx(&tx);
     }
 
-    fn sync_shared_accounts_with_tx(&mut self, tx: &PrivacyPreservingTransaction) {
+    fn sync_shared_private_accounts_with_tx(&mut self, tx: &PrivacyPreservingTransaction) {
         let shared_keys: Vec<_> = self
             .storage
             .user_data
-            .shared_accounts
+            .shared_private_accounts
             .iter()
             .filter_map(|(&account_id, entry)| {
                 let holder = self
@@ -612,9 +694,13 @@ impl WalletCore {
                     .group_key_holders
                     .get(&entry.group_label)?;
 
-                let keys = entry.pda_seed.as_ref().map_or_else(
-                    || {
-                        let tag = {
+                let keys = match (&entry.pda_seed, &entry.pda_program_id) {
+                    (Some(pda_seed), Some(program_id)) => {
+                        holder.derive_keys_for_pda(program_id, pda_seed)
+                    }
+                    (Some(_), None) => return None, // PDA without program_id, skip
+                    _ => {
+                        let derivation_seed = {
                             use sha2::Digest as _;
                             let mut hasher = sha2::Sha256::new();
                             hasher.update(b"/LEE/v0.3/SharedAccountTag/\x00\x00\x00\x00\x00");
@@ -622,10 +708,9 @@ impl WalletCore {
                             let result: [u8; 32] = hasher.finalize().into();
                             result
                         };
-                        holder.derive_keys_for_shared_account(&tag)
-                    },
-                    |pda_seed| holder.derive_keys_for_pda(pda_seed),
-                );
+                        holder.derive_keys_for_shared_account(&derivation_seed)
+                    }
+                };
                 let npk = keys.generate_nullifier_public_key();
                 let vpk = keys.generate_viewing_public_key();
                 let vsk = keys.viewing_secret_key;
@@ -658,7 +743,11 @@ impl WalletCore {
                         .expect("Ciphertext ID is expected to fit in u32"),
                 ) {
                     info!("Synced shared account {account_id:#?} with new state {new_acc:#?}");
-                    if let Some(entry) = self.storage.user_data.shared_accounts.get_mut(&account_id)
+                    if let Some(entry) = self
+                        .storage
+                        .user_data
+                        .shared_private_accounts
+                        .get_mut(&account_id)
                     {
                         entry.account = new_acc;
                     }

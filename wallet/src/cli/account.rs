@@ -176,15 +176,7 @@ impl WalletSubcommand for NewSubcommand {
                 }
 
                 if let Some(group_name) = for_gms {
-                    // GMS-derived account
-                    let holder = wallet_core
-                        .storage()
-                        .user_data
-                        .group_key_holder(&group_name)
-                        .context(format!("Group '{group_name}' not found"))?;
-
-                    if pda {
-                        // PDA shared account
+                    let info = if pda {
                         let seed_hex = seed.context("--seed is required for PDA accounts")?;
                         let pid_hex =
                             program_id.context("--program-id is required for PDA accounts")?;
@@ -204,73 +196,27 @@ impl WalletSubcommand for NewSubcommand {
                             pid[i] = u32::from_le_bytes(chunk.try_into().unwrap());
                         }
 
-                        let keys = holder.derive_keys_for_pda(&pda_seed);
-                        let npk = keys.generate_nullifier_public_key();
-                        let vpk = keys.generate_viewing_public_key();
-                        let account_id = nssa::AccountId::for_private_pda(&pid, &pda_seed, &npk);
-
-                        if let Some(label) = label {
-                            wallet_core
-                                .storage
-                                .labels
-                                .insert(account_id.to_string(), Label::new(label));
-                        }
-
-                        wallet_core.register_shared_account(
-                            account_id,
-                            group_name.clone(),
-                            u128::MAX,
-                            Some(pda_seed),
-                        );
-
-                        println!("PDA shared account from group '{group_name}'");
-                        println!("AccountId: {account_id}");
-                        println!("NPK: {}", hex::encode(npk.0));
-                        println!("VPK: {}", hex::encode(&vpk.0));
-
-                        wallet_core.store_persistent_data().await?;
-                        Ok(SubcommandReturnValue::RegisterAccount { account_id })
+                        wallet_core.create_shared_pda_account(&group_name, pda_seed, pid)?
                     } else {
-                        // Regular shared account. The tag is derived deterministically
-                        // from the identifier so that keys can be re-derived without
-                        // storing the tag separately.
-                        let identifier: nssa_core::Identifier = rand::random();
-                        let tag = {
-                            use sha2::Digest as _;
-                            let mut hasher = sha2::Sha256::new();
-                            hasher.update(b"/LEE/v0.3/SharedAccountTag/\x00\x00\x00\x00\x00");
-                            hasher.update(identifier.to_le_bytes());
-                            let result: [u8; 32] = hasher.finalize().into();
-                            result
-                        };
+                        wallet_core.create_shared_regular_account(&group_name)?
+                    };
 
-                        let keys = holder.derive_keys_for_shared_account(&tag);
-                        let npk = keys.generate_nullifier_public_key();
-                        let vpk = keys.generate_viewing_public_key();
-                        let account_id = nssa::AccountId::from((&npk, identifier));
-
-                        if let Some(label) = label {
-                            wallet_core
-                                .storage
-                                .labels
-                                .insert(account_id.to_string(), Label::new(label));
-                        }
-
-                        wallet_core.register_shared_account(
-                            account_id,
-                            group_name.clone(),
-                            identifier,
-                            None,
-                        );
-
-                        println!("Shared account from group '{group_name}'");
-                        println!("AccountId: Private/{account_id}");
-                        println!("NPK: {}", hex::encode(npk.0));
-                        println!("VPK: {}", hex::encode(&vpk.0));
-
-                        wallet_core.store_persistent_data().await?;
-                        Ok(SubcommandReturnValue::RegisterAccount { account_id })
+                    if let Some(label) = label {
+                        wallet_core
+                            .storage
+                            .labels
+                            .insert(info.account_id.to_string(), Label::new(label));
                     }
+
+                    println!("Shared account from group '{group_name}'");
+                    println!("AccountId: Private/{}", info.account_id);
+                    println!("NPK: {}", hex::encode(info.npk.0));
+                    println!("VPK: {}", hex::encode(&info.vpk.0));
+
+                    wallet_core.store_persistent_data().await?;
+                    Ok(SubcommandReturnValue::RegisterAccount {
+                        account_id: info.account_id,
+                    })
                 } else {
                     // Standard wallet-tree-derived account
                     let (account_id, chain_index) = wallet_core.create_new_account_private(cci);
