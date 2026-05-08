@@ -2,6 +2,10 @@
     clippy::tests_outside_test_module,
     reason = "Integration test file, not inside a #[cfg(test)] module"
 )]
+#![expect(
+    clippy::shadow_unrelated,
+    reason = "Sequential wallet commands naturally reuse the `command` binding"
+)]
 
 //! Shared account integration tests.
 //!
@@ -75,10 +79,14 @@ async fn group_create_and_shared_account_registration() -> Result<()> {
     Ok(())
 }
 
-/// GMS seal/unseal round-trip: export GMS, re-import under a new name, verify key agreement.
+/// GMS seal/unseal round-trip via invite/join, verify key agreement.
 #[test]
-async fn group_export_import_key_agreement() -> Result<()> {
+async fn group_invite_join_key_agreement() -> Result<()> {
     let mut ctx = TestContext::new().await?;
+
+    // Generate a sealing key
+    let command = Command::Group(GroupSubcommand::NewSealingKey);
+    wallet::cli::execute_subcommand(ctx.wallet_mut(), command).await?;
 
     // Create a group
     let command = Command::Group(GroupSubcommand::New {
@@ -86,23 +94,33 @@ async fn group_export_import_key_agreement() -> Result<()> {
     });
     wallet::cli::execute_subcommand(ctx.wallet_mut(), command).await?;
 
-    // Export the GMS
+    // Seal GMS for ourselves (simulating invite to another wallet)
+    let sealing_sk = ctx
+        .wallet()
+        .storage()
+        .user_data
+        .sealing_secret_key
+        .context("Sealing key not found")?;
+    let sealing_pk =
+        nssa_core::encryption::shared_key_derivation::Secp256k1Point::from_scalar(sealing_sk);
+
     let holder = ctx
         .wallet()
         .storage()
         .user_data
         .group_key_holder("alice-group")
         .context("Group not found")?;
-    let gms_hex = hex::encode(holder.dangerous_raw_gms());
+    let sealed = holder.seal_for(&sealing_pk);
+    let sealed_hex = hex::encode(&sealed);
 
-    // Import under a different name (simulating Bob receiving the GMS)
-    let command = Command::Group(GroupSubcommand::Import {
+    // Join under a different name (simulating Bob receiving the sealed GMS)
+    let command = Command::Group(GroupSubcommand::Join {
         name: "bob-copy".into(),
-        gms: gms_hex,
+        sealed: sealed_hex,
     });
     wallet::cli::execute_subcommand(ctx.wallet_mut(), command).await?;
 
-    // Both derive the same keys for the same tag
+    // Both derive the same keys for the same derivation seed
     let alice_holder = ctx
         .wallet()
         .storage()
@@ -116,12 +134,12 @@ async fn group_export_import_key_agreement() -> Result<()> {
         .group_key_holder("bob-copy")
         .unwrap();
 
-    let tag = [42_u8; 32];
+    let seed = [42_u8; 32];
     let alice_npk = alice_holder
-        .derive_keys_for_shared_account(&tag)
+        .derive_keys_for_shared_account(&seed)
         .generate_nullifier_public_key();
     let bob_npk = bob_holder
-        .derive_keys_for_shared_account(&tag)
+        .derive_keys_for_shared_account(&seed)
         .generate_nullifier_public_key();
 
     assert_eq!(
@@ -129,14 +147,14 @@ async fn group_export_import_key_agreement() -> Result<()> {
         "Key agreement: same GMS produces same keys"
     );
 
-    info!("Key agreement verified");
+    info!("Key agreement verified via invite/join");
     Ok(())
 }
 
 /// Fund a shared account from a public account via auth-transfer, then sync.
 /// TODO: Requires auth-transfer init to work with shared accounts (authorization flow).
 #[test]
-#[ignore]
+#[ignore = "Requires auth-transfer init to work with shared accounts (authorization flow)"]
 async fn fund_shared_account_from_public() -> Result<()> {
     let mut ctx = TestContext::new().await?;
 

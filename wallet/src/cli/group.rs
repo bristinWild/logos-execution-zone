@@ -15,19 +15,6 @@ pub enum GroupSubcommand {
         /// Human-readable name for the group.
         name: String,
     },
-    /// Import a group from raw GMS bytes.
-    Import {
-        /// Human-readable name for the group.
-        name: String,
-        /// Raw GMS as 64-character hex string.
-        #[arg(long)]
-        gms: String,
-    },
-    /// Export the raw GMS hex for backup or manual distribution.
-    Export {
-        /// Group name.
-        name: String,
-    },
     /// List all groups.
     #[command(visible_alias = "ls")]
     List,
@@ -79,43 +66,6 @@ impl WalletSubcommand for GroupSubcommand {
                 wallet_core.store_persistent_data().await?;
 
                 println!("Created group '{name}'");
-                Ok(SubcommandReturnValue::Empty)
-            }
-
-            Self::Import { name, gms } => {
-                if wallet_core
-                    .storage()
-                    .user_data
-                    .group_key_holder(&name)
-                    .is_some()
-                {
-                    anyhow::bail!("Group '{name}' already exists");
-                }
-
-                let gms_bytes: [u8; 32] = hex::decode(&gms)
-                    .context("Invalid GMS hex")?
-                    .try_into()
-                    .map_err(|_err| anyhow::anyhow!("GMS must be exactly 32 bytes"))?;
-
-                let holder = GroupKeyHolder::from_gms(gms_bytes);
-                wallet_core.insert_group_key_holder(name.clone(), holder);
-                wallet_core.store_persistent_data().await?;
-
-                println!("Imported group '{name}'");
-                Ok(SubcommandReturnValue::Empty)
-            }
-
-            Self::Export { name } => {
-                let holder = wallet_core
-                    .storage()
-                    .user_data
-                    .group_key_holder(&name)
-                    .context(format!("Group '{name}' not found"))?;
-
-                let gms_hex = hex::encode(holder.dangerous_raw_gms());
-
-                println!("Group: {name}");
-                println!("GMS: {gms_hex}");
                 Ok(SubcommandReturnValue::Empty)
             }
 
