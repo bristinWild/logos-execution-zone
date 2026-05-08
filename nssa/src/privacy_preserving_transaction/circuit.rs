@@ -419,18 +419,18 @@ mod tests {
     }
 
     /// PDA init: initializes a new PDA under `authenticated_transfer`'s ownership.
-    /// The `private_pda_spender` program chains to `authenticated_transfer` with `pda_seeds`
+    /// The `auth_transfer_proxy` program chains to `authenticated_transfer` with `pda_seeds`
     /// to establish authorization and the private PDA binding.
     #[test]
     fn private_pda_init() {
-        let program = Program::private_pda_spender();
+        let program = Program::auth_transfer_proxy();
         let auth_transfer = Program::authenticated_transfer_program();
         let keys = test_private_account_keys_1();
         let npk = keys.npk();
         let seed = PdaSeed::new([42; 32]);
         let shared_secret_pda = SharedSecretKey::new(&[55; 32], &keys.vpk());
 
-        // PDA (new, private PDA) — AccountId derived from private_pda_spender's program ID
+        // PDA (new, private PDA) — AccountId derived from auth_transfer_proxy's program ID
         let pda_id = AccountId::for_private_pda(&program.id(), &seed, &npk);
         let pda_pre = AccountWithMetadata::new(Account::default(), false, pda_id);
 
@@ -460,7 +460,7 @@ mod tests {
     /// two-tx sequence with membership proofs.
     #[test]
     fn private_pda_withdraw() {
-        let program = Program::private_pda_spender();
+        let program = Program::auth_transfer_proxy();
         let auth_transfer = Program::authenticated_transfer_program();
         let keys = test_private_account_keys_1();
         let npk = keys.npk();
