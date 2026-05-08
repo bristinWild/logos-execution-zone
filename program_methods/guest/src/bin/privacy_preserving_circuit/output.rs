@@ -6,7 +6,7 @@ use nssa_core::{
     compute_digest_for_path,
 };
 
-use super::ExecutionState;
+use crate::execution_state::ExecutionState;
 
 // SECURITY: the non-PDA private variants below assert that the prover-supplied `identifier` is
 // not equal to this constant; the PDA variants pass it as the fixed identifier. This keeps the
