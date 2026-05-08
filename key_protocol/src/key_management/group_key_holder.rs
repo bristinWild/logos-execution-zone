@@ -12,10 +12,30 @@ use super::secret_holders::{PrivateKeyHolder, SecretSpendingKey};
 
 /// Public key used to seal a `GroupKeyHolder` for distribution to a recipient.
 ///
-/// Structurally identical to `ViewingPublicKey` (both are secp256k1 points), but given
-/// a distinct alias to clarify intent: viewing keys encrypt account state, sealing keys
-/// encrypt the GMS for off-chain distribution.
-pub type SealingPublicKey = Secp256k1Point;
+/// Wraps a secp256k1 point but is a distinct type from `ViewingPublicKey` to enforce
+/// key separation: viewing keys encrypt account state, sealing keys encrypt the GMS
+/// for off-chain distribution.
+pub struct SealingPublicKey(Secp256k1Point);
+
+impl SealingPublicKey {
+    /// Derive the sealing public key from a secret scalar.
+    #[must_use]
+    pub fn from_scalar(scalar: Scalar) -> Self {
+        Self(Secp256k1Point::from_scalar(scalar))
+    }
+
+    /// Construct from raw serialized bytes (e.g. received from another wallet).
+    #[must_use]
+    pub const fn from_bytes(bytes: Vec<u8>) -> Self {
+        Self(Secp256k1Point(bytes))
+    }
+
+    /// Returns the raw bytes for display or transmission.
+    #[must_use]
+    pub fn to_bytes(&self) -> &[u8] {
+        &self.0.0
+    }
+}
 
 /// Secret key used to unseal a `GroupKeyHolder` received from another member.
 pub type SealingSecretKey = Scalar;
@@ -144,7 +164,7 @@ impl GroupKeyHolder {
         let mut ephemeral_scalar: Scalar = [0_u8; 32];
         OsRng.fill_bytes(&mut ephemeral_scalar);
         let ephemeral_pubkey = Secp256k1Point::from_scalar(ephemeral_scalar);
-        let shared = SharedSecretKey::new(&ephemeral_scalar, recipient_key);
+        let shared = SharedSecretKey::new(&ephemeral_scalar, &recipient_key.0);
         let aes_key = Self::seal_kdf(&shared);
         let cipher = Aes256Gcm::new(&aes_key.into());
 
@@ -386,7 +406,7 @@ mod tests {
         let recipient_vpk = recipient_keys.generate_viewing_public_key();
         let recipient_vsk = recipient_keys.viewing_secret_key;
 
-        let sealed = holder.seal_for(&recipient_vpk);
+        let sealed = holder.seal_for(&SealingPublicKey::from_bytes(recipient_vpk.0));
         let restored = GroupKeyHolder::unseal(&sealed, &recipient_vsk).expect("unseal");
 
         assert_eq!(restored.dangerous_raw_gms(), holder.dangerous_raw_gms());
@@ -417,7 +437,7 @@ mod tests {
             .produce_private_key_holder(None)
             .viewing_secret_key;
 
-        let sealed = holder.seal_for(&recipient_vpk);
+        let sealed = holder.seal_for(&SealingPublicKey::from_bytes(recipient_vpk.0));
         let result = GroupKeyHolder::unseal(&sealed, &wrong_vsk);
         assert!(matches!(result, Err(super::SealError::DecryptionFailed)));
     }
@@ -432,7 +452,7 @@ mod tests {
         let recipient_vpk = recipient_keys.generate_viewing_public_key();
         let recipient_vsk = recipient_keys.viewing_secret_key;
 
-        let mut sealed = holder.seal_for(&recipient_vpk);
+        let mut sealed = holder.seal_for(&SealingPublicKey::from_bytes(recipient_vpk.0));
         // Flip a byte in the ciphertext portion (after ephemeral_pubkey + nonce)
         let last = sealed.len() - 1;
         sealed[last] ^= 0xFF;
@@ -451,8 +471,9 @@ mod tests {
             .produce_private_key_holder(None)
             .generate_viewing_public_key();
 
-        let sealed_a = holder.seal_for(&recipient_vpk);
-        let sealed_b = holder.seal_for(&recipient_vpk);
+        let sealing_key = SealingPublicKey::from_bytes(recipient_vpk.0);
+        let sealed_a = holder.seal_for(&sealing_key);
+        let sealed_b = holder.seal_for(&sealing_key);
         assert_ne!(sealed_a, sealed_b);
     }
 
@@ -514,7 +535,7 @@ mod tests {
         let bob_vpk = bob_keys.generate_viewing_public_key();
         let bob_vsk = bob_keys.viewing_secret_key;
 
-        let sealed = alice_holder.seal_for(&bob_vpk);
+        let sealed = alice_holder.seal_for(&SealingPublicKey::from_bytes(bob_vpk.0));
         let bob_holder =
             GroupKeyHolder::unseal(&sealed, &bob_vsk).expect("Bob should unseal the GMS");
 

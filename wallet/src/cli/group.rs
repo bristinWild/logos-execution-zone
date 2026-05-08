@@ -1,6 +1,6 @@
 use anyhow::{Context as _, Result};
 use clap::Subcommand;
-use key_protocol::key_management::group_key_holder::GroupKeyHolder;
+use key_protocol::key_management::group_key_holder::{GroupKeyHolder, SealingPublicKey};
 
 use crate::{
     WalletCore,
@@ -99,8 +99,10 @@ impl WalletSubcommand for GroupSubcommand {
                     .context(format!("Group '{name}' not found"))?;
 
                 let key_bytes = hex::decode(&key).context("Invalid key hex")?;
-                let recipient_key: key_protocol::key_management::group_key_holder::SealingPublicKey =
-                    nssa_core::encryption::shared_key_derivation::Secp256k1Point(key_bytes);
+                let recipient_key =
+                    key_protocol::key_management::group_key_holder::SealingPublicKey::from_bytes(
+                        key_bytes,
+                    );
 
                 let sealed = holder.seal_for(&recipient_key);
                 println!("{}", hex::encode(&sealed));
@@ -141,16 +143,13 @@ impl WalletSubcommand for GroupSubcommand {
 
                 let mut secret: nssa_core::encryption::Scalar = [0_u8; 32];
                 rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut secret);
-                let public_key =
-                    nssa_core::encryption::shared_key_derivation::Secp256k1Point::from_scalar(
-                        secret,
-                    );
+                let public_key = SealingPublicKey::from_scalar(secret);
 
                 wallet_core.set_sealing_secret_key(secret);
                 wallet_core.store_persistent_data().await?;
 
                 println!("Sealing key generated.");
-                println!("Public key: {}", hex::encode(&public_key.0));
+                println!("Public key: {}", hex::encode(public_key.to_bytes()));
                 println!("Share this public key with group members so they can seal GMS for you.");
                 Ok(SubcommandReturnValue::Empty)
             }

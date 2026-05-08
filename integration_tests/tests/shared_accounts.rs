@@ -102,7 +102,7 @@ async fn group_invite_join_key_agreement() -> Result<()> {
         .sealing_secret_key
         .context("Sealing key not found")?;
     let sealing_pk =
-        nssa_core::encryption::shared_key_derivation::Secp256k1Point::from_scalar(sealing_sk);
+        key_protocol::key_management::group_key_holder::SealingPublicKey::from_scalar(sealing_sk);
 
     let holder = ctx
         .wallet()
