@@ -206,6 +206,7 @@ pub fn produce_data_for_storage(
         labels,
         group_key_holders: user_data.group_key_holders.clone(),
         shared_private_accounts: user_data.shared_private_accounts.clone(),
+        sealing_secret_key: user_data.sealing_secret_key,
     }
 }
 

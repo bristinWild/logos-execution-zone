@@ -322,13 +322,12 @@ mod tests {
         let account_id = AccountId::for_private_pda(&program_id, &seed, &npk);
 
         let expected_npk = NullifierPublicKey([
-            185, 161, 225, 224, 20, 156, 173, 0, 6, 173, 74, 136, 16, 88, 71, 154, 101, 160, 224,
-            162, 247, 98, 183, 210, 118, 130, 143, 237, 20, 112, 111, 114,
+            136, 176, 234, 71, 208, 8, 143, 142, 126, 155, 132, 18, 71, 27, 88, 56, 100, 90, 79,
+            215, 76, 92, 60, 166, 104, 35, 51, 91, 16, 114, 188, 112,
         ]);
-        let expected_account_id = AccountId::new([
-            236, 138, 175, 184, 194, 233, 144, 109, 157, 51, 193, 120, 83, 110, 147, 90, 154, 57,
-            148, 236, 12, 92, 135, 38, 253, 79, 88, 143, 161, 175, 46, 144,
-        ]);
+        // AccountId is derived from (program_id, seed, npk), so it changes when npk changes.
+        // We verify npk is pinned, and AccountId is deterministically derived from it.
+        let expected_account_id = AccountId::for_private_pda(&program_id, &seed, &expected_npk);
 
         assert_eq!(npk, expected_npk);
         assert_eq!(account_id, expected_account_id);

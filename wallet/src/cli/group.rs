@@ -45,16 +45,17 @@ pub enum GroupSubcommand {
         key: String,
     },
     /// Unseal a received GMS and store it (join a group).
+    /// Uses the wallet's dedicated sealing key (generated via `new-sealing-key`).
     Join {
         /// Human-readable name to store the group under.
         name: String,
         /// Sealed GMS as hex string (from the inviter).
         #[arg(long)]
         sealed: String,
-        /// Account ID whose viewing secret key to use for decryption.
-        #[arg(long)]
-        account: String,
     },
+    /// Generate a dedicated sealing key pair for GMS distribution.
+    /// Share the printed public key with group members so they can seal GMS for you.
+    NewSealingKey,
 }
 
 impl WalletSubcommand for GroupSubcommand {
@@ -156,11 +157,7 @@ impl WalletSubcommand for GroupSubcommand {
                 Ok(SubcommandReturnValue::Empty)
             }
 
-            Self::Join {
-                name,
-                sealed,
-                account,
-            } => {
+            Self::Join { name, sealed } => {
                 if wallet_core
                     .storage()
                     .user_data
@@ -170,23 +167,41 @@ impl WalletSubcommand for GroupSubcommand {
                     anyhow::bail!("Group '{name}' already exists");
                 }
 
+                let sealing_key =
+                    wallet_core.storage().user_data.sealing_secret_key.context(
+                        "No sealing key found. Run 'wallet group new-sealing-key' first.",
+                    )?;
+
                 let sealed_bytes = hex::decode(&sealed).context("Invalid sealed hex")?;
 
-                let account_id: nssa::AccountId = account.parse().context("Invalid account ID")?;
-                let (keychain, _, _) = wallet_core
-                    .storage()
-                    .user_data
-                    .get_private_account(account_id)
-                    .context("Private account not found")?;
-                let vsk = keychain.private_key_holder.viewing_secret_key;
-
-                let holder = GroupKeyHolder::unseal(&sealed_bytes, &vsk)
+                let holder = GroupKeyHolder::unseal(&sealed_bytes, &sealing_key)
                     .map_err(|e| anyhow::anyhow!("Failed to unseal: {e:?}"))?;
 
                 wallet_core.insert_group_key_holder(name.clone(), holder);
                 wallet_core.store_persistent_data().await?;
 
                 println!("Joined group '{name}'");
+                Ok(SubcommandReturnValue::Empty)
+            }
+
+            Self::NewSealingKey => {
+                if wallet_core.storage().user_data.sealing_secret_key.is_some() {
+                    anyhow::bail!("Sealing key already exists. Each wallet has one sealing key.");
+                }
+
+                let mut secret: nssa_core::encryption::Scalar = [0_u8; 32];
+                rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut secret);
+                let public_key =
+                    nssa_core::encryption::shared_key_derivation::Secp256k1Point::from_scalar(
+                        secret,
+                    );
+
+                wallet_core.set_sealing_secret_key(secret);
+                wallet_core.store_persistent_data().await?;
+
+                println!("Sealing key generated.");
+                println!("Public key: {}", hex::encode(&public_key.0));
+                println!("Share this public key with group members so they can seal GMS for you.");
                 Ok(SubcommandReturnValue::Empty)
             }
         }

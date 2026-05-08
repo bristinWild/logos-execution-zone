@@ -107,6 +107,7 @@ impl WalletCore {
             labels,
             group_key_holders,
             shared_private_accounts,
+            sealing_secret_key,
         } = PersistentStorage::from_path(&storage_path).with_context(|| {
             format!(
                 "Failed to read persistent storage at {}",
@@ -122,6 +123,7 @@ impl WalletCore {
                 let mut store = WalletChainStore::new(config, persistent_accounts, labels)?;
                 store.user_data.group_key_holders = group_key_holders;
                 store.user_data.shared_private_accounts = shared_private_accounts;
+                store.user_data.sealing_secret_key = sealing_secret_key;
                 Ok(store)
             },
             last_synced_block,
@@ -308,6 +310,11 @@ impl WalletCore {
         holder: key_protocol::key_management::group_key_holder::GroupKeyHolder,
     ) {
         self.storage.user_data.insert_group_key_holder(name, holder);
+    }
+
+    /// Set the wallet's dedicated sealing secret key.
+    pub const fn set_sealing_secret_key(&mut self, key: nssa_core::encryption::Scalar) {
+        self.storage.user_data.sealing_secret_key = Some(key);
     }
 
     /// Remove a group key holder from storage. Returns the removed holder if it existed.

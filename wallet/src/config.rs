@@ -110,6 +110,9 @@ pub struct PersistentStorage {
         nssa::AccountId,
         key_protocol::key_protocol_core::SharedAccountEntry,
     >,
+    /// Dedicated sealing secret key for GMS distribution.
+    #[serde(default)]
+    pub sealing_secret_key: Option<nssa_core::encryption::Scalar>,
 }
 
 impl PersistentStorage {

@@ -52,6 +52,10 @@ pub struct NSSAUserData {
     /// keyed by `AccountId`. Each entry stores the group label and identifier needed
     /// to re-derive keys during sync.
     pub shared_private_accounts: BTreeMap<nssa::AccountId, SharedAccountEntry>,
+    /// Dedicated sealing secret key for GMS distribution. Generated once via
+    /// `wallet group new-sealing-key`. The corresponding public key is shared with
+    /// group members so they can seal GMS for this wallet.
+    pub sealing_secret_key: Option<nssa_core::encryption::Scalar>,
 }
 
 impl NSSAUserData {
@@ -112,6 +116,7 @@ impl NSSAUserData {
             private_key_tree,
             group_key_holders: BTreeMap::new(),
             shared_private_accounts: BTreeMap::new(),
+            sealing_secret_key: None,
         })
     }
 
