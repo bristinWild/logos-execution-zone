@@ -30,8 +30,8 @@ pub enum InputAccountIdentity {
     Public,
     /// Init of an authorized standalone private account: no membership proof. The `pre_state`
     /// must be `Account::default()`. The `account_id` is derived as
-    /// `AccountId::for_regular_private_account(&NullifierPublicKey::from(nsk), identifier)` and matched against
-    /// `pre_state.account_id`.
+    /// `AccountId::for_regular_private_account(&NullifierPublicKey::from(nsk), identifier)` and
+    /// matched against `pre_state.account_id`.
     PrivateAuthorizedInit {
         ssk: SharedSecretKey,
         nsk: NullifierSecretKey,

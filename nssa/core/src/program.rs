@@ -26,7 +26,18 @@ pub struct ProgramInput<T> {
 /// Each program can derive up to `2^256` unique account IDs by choosing different
 /// seeds. PDAs allow programs to control namespaced account identifiers without
 /// collisions between programs.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Hash,
+    Serialize,
+    Deserialize,
+    BorshSerialize,
+    BorshDeserialize,
+)]
 pub struct PdaSeed([u8; 32]);
 
 impl PdaSeed {
@@ -83,7 +94,7 @@ impl PrivateAccountKind {
 
     #[must_use]
     pub fn to_header_bytes(&self) -> [u8; Self::HEADER_LEN] {
-        let mut bytes = [0u8; Self::HEADER_LEN];
+        let mut bytes = [0_u8; Self::HEADER_LEN];
         let serialized = borsh::to_vec(self).expect("borsh serialization is infallible");
         bytes[..serialized.len()].copy_from_slice(&serialized);
         bytes

@@ -274,7 +274,10 @@ impl KeyTree<ChildKeysPrivate> {
         identifier: Identifier,
     ) -> Option<nssa::AccountId> {
         let node = self.key_map.get(cci)?;
-        let account_id = nssa::AccountId::for_regular_private_account(&node.value.0.nullifier_public_key, identifier);
+        let account_id = nssa::AccountId::for_regular_private_account(
+            &node.value.0.nullifier_public_key,
+            identifier,
+        );
         if self.account_id_map.contains_key(&account_id) {
             return None;
         }

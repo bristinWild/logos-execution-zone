@@ -103,7 +103,10 @@ pub struct PrivateAccountPrivateInitialData {
 impl PrivateAccountPrivateInitialData {
     #[must_use]
     pub fn account_id(&self) -> nssa::AccountId {
-        nssa::AccountId::for_regular_private_account(&self.key_chain.nullifier_public_key, self.identifier)
+        nssa::AccountId::for_regular_private_account(
+            &self.key_chain.nullifier_public_key,
+            self.identifier,
+        )
     }
 }
 
