@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-#[cfg(any(feature = "host", test))]
 use borsh::{BorshDeserialize, BorshSerialize};
 use risc0_zkvm::{DeserializeOwned, guest::env, serde::Deserializer};
 use serde::{Deserialize, Serialize};
@@ -27,7 +26,7 @@ pub struct ProgramInput<T> {
 /// Each program can derive up to `2^256` unique account IDs by choosing different
 /// seeds. PDAs allow programs to control namespaced account identifiers without
 /// collisions between programs.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub struct PdaSeed([u8; 32]);
 
 impl PdaSeed {
@@ -52,7 +51,7 @@ impl AsRef<[u8]> for PdaSeed {
 /// to reconstruct the account's [`AccountId`] on the receiver side.
 ///
 /// [`AccountId`]: crate::account::AccountId
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 pub enum PrivateAccountKind {
     Regular(Identifier),
     Pda {
@@ -63,12 +62,16 @@ pub enum PrivateAccountKind {
 }
 
 impl PrivateAccountKind {
-    /// Header layout (all integers little-endian):
+    /// Borsh layout (all integers little-endian, variant index is u8):
     ///
     /// ```text
     /// Regular(ident):                  0x00 || ident (16 LE) || [0u8; 64]
     /// Pda { program_id, seed, ident }: 0x01 || program_id (32) || seed (32) || ident (16 LE)
     /// ```
+    ///
+    /// Both variants are zero-padded to the same length so all ciphertexts are the same size,
+    /// preventing observers from distinguishing `Regular` from `Pda` via ciphertext length.
+    /// `HEADER_LEN` equals the borsh size of the largest variant (`Pda`): 1 + 32 + 32 + 16 = 81.
     pub const HEADER_LEN: usize = 81;
 
     #[must_use]
@@ -80,54 +83,16 @@ impl PrivateAccountKind {
 
     #[must_use]
     pub fn to_header_bytes(&self) -> [u8; Self::HEADER_LEN] {
-        let mut bytes = [0_u8; Self::HEADER_LEN];
-        match self {
-            Self::Regular(identifier) => {
-                bytes[0] = 0x00;
-                bytes[1..17].copy_from_slice(&identifier.to_le_bytes());
-                // bytes[17..81] are zero padding
-            }
-            Self::Pda {
-                program_id,
-                seed,
-                identifier,
-            } => {
-                bytes[0] = 0x01;
-                let id_bytes: &[u8] =
-                    bytemuck::try_cast_slice(program_id).expect("ProgramId is castable to &[u8]");
-                bytes[1..33].copy_from_slice(id_bytes);
-                bytes[33..65].copy_from_slice(seed.as_bytes());
-                bytes[65..81].copy_from_slice(&identifier.to_le_bytes());
-            }
-        }
+        let mut bytes = [0u8; Self::HEADER_LEN];
+        let serialized = borsh::to_vec(self).expect("borsh serialization is infallible");
+        bytes[..serialized.len()].copy_from_slice(&serialized);
         bytes
     }
 
     #[cfg(feature = "host")]
     #[must_use]
     pub fn from_header_bytes(bytes: &[u8; Self::HEADER_LEN]) -> Option<Self> {
-        match bytes[0] {
-            0x00 => {
-                let identifier = Identifier::from_le_bytes(bytes[1..17].try_into().unwrap());
-                Some(Self::Regular(identifier))
-            }
-            0x01 => {
-                let program_id: ProgramId = bytes[1..33]
-                    .chunks_exact(4)
-                    .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .expect("slice has exactly 8 u32 elements");
-                let seed = PdaSeed::new(bytes[33..65].try_into().unwrap());
-                let identifier = Identifier::from_le_bytes(bytes[65..81].try_into().unwrap());
-                Some(Self::Pda {
-                    program_id,
-                    seed,
-                    identifier,
-                })
-            }
-            _ => None,
-        }
+        BorshDeserialize::deserialize(&mut bytes.as_ref()).ok()
     }
 }
 
