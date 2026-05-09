@@ -220,7 +220,7 @@ fn build_privacy_transaction() -> PrivacyPreservingTransaction {
             data: Data::default(),
         },
         true,
-        AccountId::from((&sender_npk, 0)),
+        AccountId::for_regular_private_account(&sender_npk, 0),
     );
     let recipient_nsk = [2; 32];
     let recipient_vsk = [99; 32];
@@ -229,7 +229,7 @@ fn build_privacy_transaction() -> PrivacyPreservingTransaction {
     let recipient_pre = AccountWithMetadata::new(
         Account::default(),
         false,
-        AccountId::from((&recipient_npk, 0)),
+        AccountId::for_regular_private_account(&recipient_npk, 0),
     );
 
     let eph_holder_from = EphemeralKeyHolder::new(&sender_npk);

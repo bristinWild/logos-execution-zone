@@ -20,10 +20,10 @@ pub enum PrivacyPreservingAccount {
         identifier: Identifier,
     },
     /// An owned private PDA: wallet holds the nsk/npk; `account_id` was derived via
-    /// `AccountId::for_private_pda`. Produces visibility mask 3.
+    /// [`AccountId::for_private_pda`].
     PrivatePdaOwned(AccountId),
     /// A foreign private PDA: wallet knows the recipient's npk/vpk but not their nsk.
-    /// Produces visibility mask 3 with a default (uninitialised) account.
+    /// Uses a default (uninitialised) account.
     PrivatePdaForeign {
         account_id: AccountId,
         npk: NullifierPublicKey,

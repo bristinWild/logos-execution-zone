@@ -222,7 +222,7 @@ mod tests {
             AccountId::new([0; 32]),
         );
 
-        let recipient_account_id = AccountId::from((&recipient_keys.npk(), 0));
+        let recipient_account_id = AccountId::for_regular_private_account(&recipient_keys.npk(), 0);
         let recipient = AccountWithMetadata::new(Account::default(), false, recipient_account_id);
 
         let balance_to_move: u128 = 37;
@@ -296,12 +296,12 @@ mod tests {
                 data: Data::default(),
             },
             true,
-            AccountId::from((&sender_keys.npk(), 0)),
+            AccountId::for_regular_private_account(&sender_keys.npk(), 0),
         );
-        let sender_account_id = AccountId::from((&sender_keys.npk(), 0));
+        let sender_account_id = AccountId::for_regular_private_account(&sender_keys.npk(), 0);
         let commitment_sender = Commitment::new(&sender_account_id, &sender_pre.account);
 
-        let recipient_account_id = AccountId::from((&recipient_keys.npk(), 0));
+        let recipient_account_id = AccountId::for_regular_private_account(&recipient_keys.npk(), 0);
         let recipient = AccountWithMetadata::new(Account::default(), false, recipient_account_id);
         let balance_to_move: u128 = 37;
 
@@ -397,7 +397,7 @@ mod tests {
         let pre = AccountWithMetadata::new(
             Account::default(),
             false,
-            AccountId::from((&account_keys.npk(), 0)),
+            AccountId::for_regular_private_account(&account_keys.npk(), 0),
         );
 
         let validity_window_chain_caller = Program::validity_window_chain_caller();
@@ -582,7 +582,7 @@ mod tests {
         let keys = test_private_account_keys_1();
         let identifier: u128 = 99;
         let ssk = SharedSecretKey::new(&[55; 32], &keys.vpk());
-        let account_id = AccountId::from((&keys.npk(), identifier));
+        let account_id = AccountId::for_regular_private_account(&keys.npk(), identifier);
         let pre = AccountWithMetadata::new(Account::default(), true, account_id);
 
         let (output, _) = execute_and_prove(
@@ -621,7 +621,7 @@ mod tests {
             true,
             AccountId::new([0; 32]),
         );
-        let recipient_id = AccountId::from((&keys.npk(), identifier));
+        let recipient_id = AccountId::for_regular_private_account(&keys.npk(), identifier);
         let recipient = AccountWithMetadata::new(Account::default(), false, recipient_id);
 
         let (output, _) = execute_and_prove(
@@ -653,7 +653,7 @@ mod tests {
         let keys = test_private_account_keys_1();
         let identifier: u128 = 99;
         let ssk = SharedSecretKey::new(&[55; 32], &keys.vpk());
-        let account_id = AccountId::from((&keys.npk(), identifier));
+        let account_id = AccountId::for_regular_private_account(&keys.npk(), identifier);
         let account = Account {
             program_owner: program.id(),
             balance: 1,

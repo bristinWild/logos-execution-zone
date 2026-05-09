@@ -190,7 +190,9 @@ impl AccountId {
     #[must_use]
     pub fn for_private_account(npk: &NullifierPublicKey, kind: &PrivateAccountKind) -> Self {
         match kind {
-            PrivateAccountKind::Regular(identifier) => Self::from((npk, *identifier)),
+            PrivateAccountKind::Regular(identifier) => {
+                Self::for_regular_private_account(npk, *identifier)
+            }
             PrivateAccountKind::Pda {
                 program_id,
                 seed,
@@ -1078,7 +1080,7 @@ mod tests {
 
         assert_eq!(
             AccountId::for_private_account(&npk, &PrivateAccountKind::Regular(identifier)),
-            AccountId::from((&npk, identifier)),
+            AccountId::for_regular_private_account(&npk, identifier),
         );
         assert_eq!(
             AccountId::for_private_account(

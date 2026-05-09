@@ -282,7 +282,7 @@ impl WalletCore {
             .value
             .0
             .nullifier_public_key;
-        let account_id = AccountId::from((&npk, identifier));
+        let account_id = AccountId::for_regular_private_account(&npk, identifier);
         self.storage.insert_private_account_data(
             account_id,
             &PrivateAccountKind::Regular(identifier),
@@ -544,21 +544,7 @@ impl WalletCore {
                         )
                         .map(|(kind, res_acc)| {
                             let npk = &key_chain.nullifier_public_key;
-                            let account_id = match &kind {
-                                PrivateAccountKind::Regular(identifier) => {
-                                    nssa::AccountId::from((npk, *identifier))
-                                }
-                                PrivateAccountKind::Pda {
-                                    program_id,
-                                    seed,
-                                    identifier,
-                                } => nssa::AccountId::for_private_pda(
-                                    program_id,
-                                    seed,
-                                    npk,
-                                    *identifier,
-                                ),
-                            };
+                            let account_id = nssa::AccountId::for_private_account(npk, &kind);
                             (account_id, kind, res_acc)
                         })
                     })

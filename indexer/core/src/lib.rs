@@ -48,7 +48,7 @@ impl IndexerCore {
                     .iter()
                     .map(|init_comm_data| {
                         let npk = &init_comm_data.npk;
-                        let account_id = nssa::AccountId::from((npk, 0));
+                        let account_id = nssa::AccountId::for_regular_private_account(npk, 0);
 
                         let mut acc = init_comm_data.account.clone();
 

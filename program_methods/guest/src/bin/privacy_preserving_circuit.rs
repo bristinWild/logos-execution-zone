@@ -521,7 +521,7 @@ fn compute_circuit_output(
                 identifier,
             } => {
                 let npk = NullifierPublicKey::from(nsk);
-                let account_id = AccountId::from((&npk, *identifier));
+                let account_id = AccountId::for_regular_private_account(&npk, *identifier);
 
                 assert_eq!(account_id, pre_state.account_id, "AccountId mismatch");
                 assert!(
@@ -558,7 +558,7 @@ fn compute_circuit_output(
                 identifier,
             } => {
                 let npk = NullifierPublicKey::from(nsk);
-                let account_id = AccountId::from((&npk, *identifier));
+                let account_id = AccountId::for_regular_private_account(&npk, *identifier);
 
                 assert_eq!(account_id, pre_state.account_id, "AccountId mismatch");
                 assert!(
@@ -590,7 +590,7 @@ fn compute_circuit_output(
                 ssk,
                 identifier,
             } => {
-                let account_id = AccountId::from((npk, *identifier));
+                let account_id = AccountId::for_regular_private_account(npk, *identifier);
 
                 assert_eq!(account_id, pre_state.account_id, "AccountId mismatch");
                 assert_eq!(

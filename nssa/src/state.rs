@@ -459,7 +459,7 @@ pub mod tests {
 
         #[must_use]
         pub fn with_private_account(mut self, keys: &TestPrivateKeys, account: &Account) -> Self {
-            let account_id = AccountId::from((&keys.npk(), 0));
+            let account_id = AccountId::for_regular_private_account(&keys.npk(), 0);
             let commitment = Commitment::new(&account_id, account);
             self.private_state.0.extend(&[commitment]);
             self
@@ -618,8 +618,8 @@ pub mod tests {
             ..Account::default()
         };
 
-        let account_id1 = AccountId::from((&keys1.npk(), 0));
-        let account_id2 = AccountId::from((&keys2.npk(), 0));
+        let account_id1 = AccountId::for_regular_private_account(&keys1.npk(), 0);
+        let account_id2 = AccountId::for_regular_private_account(&keys2.npk(), 0);
 
         let init_commitment1 = Commitment::new(&account_id1, &account);
         let init_commitment2 = Commitment::new(&account_id2, &account);
@@ -1332,7 +1332,7 @@ pub mod tests {
         state: &V03State,
     ) -> PrivacyPreservingTransaction {
         let program = Program::authenticated_transfer_program();
-        let sender_account_id = AccountId::from((&sender_keys.npk(), 0));
+        let sender_account_id = AccountId::for_regular_private_account(&sender_keys.npk(), 0);
         let sender_commitment = Commitment::new(&sender_account_id, sender_private_account);
         let sender_pre = AccountWithMetadata::new(
             sender_private_account.clone(),
@@ -1396,7 +1396,7 @@ pub mod tests {
         state: &V03State,
     ) -> PrivacyPreservingTransaction {
         let program = Program::authenticated_transfer_program();
-        let sender_account_id = AccountId::from((&sender_keys.npk(), 0));
+        let sender_account_id = AccountId::for_regular_private_account(&sender_keys.npk(), 0);
         let sender_commitment = Commitment::new(&sender_account_id, sender_private_account);
         let sender_pre = AccountWithMetadata::new(
             sender_private_account.clone(),
@@ -1511,8 +1511,8 @@ pub mod tests {
             &state,
         );
 
-        let sender_account_id = AccountId::from((&sender_keys.npk(), 0));
-        let recipient_account_id = AccountId::from((&recipient_keys.npk(), 0));
+        let sender_account_id = AccountId::for_regular_private_account(&sender_keys.npk(), 0);
+        let recipient_account_id = AccountId::for_regular_private_account(&recipient_keys.npk(), 0);
         let expected_new_commitment_1 = Commitment::new(
             &sender_account_id,
             &Account {
@@ -1590,7 +1590,7 @@ pub mod tests {
             &state,
         );
 
-        let sender_account_id = AccountId::from((&sender_keys.npk(), 0));
+        let sender_account_id = AccountId::for_regular_private_account(&sender_keys.npk(), 0);
         let expected_new_commitment = Commitment::new(
             &sender_account_id,
             &Account {
@@ -2826,7 +2826,7 @@ pub mod tests {
             balance: 100,
             ..Account::default()
         };
-        let sender_account_id = AccountId::from((&sender_keys.npk(), 0));
+        let sender_account_id = AccountId::for_regular_private_account(&sender_keys.npk(), 0);
         let sender_commitment = Commitment::new(&sender_account_id, &sender_private_account);
         let sender_init_nullifier = Nullifier::for_account_initialization(&sender_account_id);
         let mut state = V03State::new_with_genesis_accounts(
@@ -2919,8 +2919,8 @@ pub mod tests {
             (&to_keys.npk(), 0),
         );
 
-        let from_account_id = AccountId::from((&from_keys.npk(), 0));
-        let to_account_id = AccountId::from((&to_keys.npk(), 0));
+        let from_account_id = AccountId::for_regular_private_account(&from_keys.npk(), 0);
+        let to_account_id = AccountId::for_regular_private_account(&to_keys.npk(), 0);
         let from_commitment = Commitment::new(&from_account_id, &from_account.account);
         let to_commitment = Commitment::new(&to_account_id, &to_account.account);
         let from_init_nullifier = Nullifier::for_account_initialization(&from_account_id);
@@ -3280,7 +3280,7 @@ pub mod tests {
         let result = state.transition_from_privacy_preserving_transaction(&tx, 1, 0);
         assert!(result.is_ok());
 
-        let account_id = AccountId::from((&private_keys.npk(), 0));
+        let account_id = AccountId::for_regular_private_account(&private_keys.npk(), 0);
         let nullifier = Nullifier::for_account_initialization(&account_id);
         assert!(state.private_state.1.contains(&nullifier));
     }
@@ -3329,7 +3329,7 @@ pub mod tests {
             .transition_from_privacy_preserving_transaction(&tx, 1, 0)
             .unwrap();
 
-        let account_id = AccountId::from((&private_keys.npk(), 0));
+        let account_id = AccountId::for_regular_private_account(&private_keys.npk(), 0);
         let nullifier = Nullifier::for_account_initialization(&account_id);
         assert!(state.private_state.1.contains(&nullifier));
     }
@@ -3386,7 +3386,7 @@ pub mod tests {
         );
 
         // Verify the account is now initialized (nullifier exists)
-        let account_id = AccountId::from((&private_keys.npk(), 0));
+        let account_id = AccountId::for_regular_private_account(&private_keys.npk(), 0);
         let nullifier = Nullifier::for_account_initialization(&account_id);
         assert!(state.private_state.1.contains(&nullifier));
 
@@ -3541,7 +3541,7 @@ pub mod tests {
         let recipient_account =
             AccountWithMetadata::new(Account::default(), true, (&recipient_keys.npk(), 0));
 
-        let recipient_account_id = AccountId::from((&recipient_keys.npk(), 0));
+        let recipient_account_id = AccountId::for_regular_private_account(&recipient_keys.npk(), 0);
         let recipient_commitment =
             Commitment::new(&recipient_account_id, &recipient_account.account);
         let recipient_init_nullifier = Nullifier::for_account_initialization(&recipient_account_id);
