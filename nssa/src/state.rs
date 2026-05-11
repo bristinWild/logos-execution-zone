@@ -4307,7 +4307,7 @@ pub mod tests {
         let alice_keys = test_private_account_keys_1();
         let alice_npk = alice_keys.npk();
 
-        let proxy = Program::auth_transfer_pda_proxy();
+        let proxy = Program::pda_fund_spend_proxy();
         let auth_transfer = Program::authenticated_transfer_program();
         let proxy_id = proxy.id();
         let auth_transfer_id = auth_transfer.id();

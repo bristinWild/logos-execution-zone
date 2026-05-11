@@ -333,12 +333,12 @@ mod tests {
         }
 
         #[must_use]
-        pub fn auth_transfer_pda_proxy() -> Self {
-            use test_program_methods::{AUTH_TRANSFER_PDA_PROXY_ELF, AUTH_TRANSFER_PDA_PROXY_ID};
+        pub fn pda_fund_spend_proxy() -> Self {
+            use test_program_methods::{PDA_FUND_SPEND_PROXY_ELF, PDA_FUND_SPEND_PROXY_ID};
 
             Self {
-                id: AUTH_TRANSFER_PDA_PROXY_ID,
-                elf: AUTH_TRANSFER_PDA_PROXY_ELF.to_vec(),
+                id: PDA_FUND_SPEND_PROXY_ID,
+                elf: PDA_FUND_SPEND_PROXY_ELF.to_vec(),
             }
         }
 

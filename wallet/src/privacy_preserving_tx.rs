@@ -341,8 +341,12 @@ async fn private_acc_preparation(
         .shared_private_account(&account_id)
         .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
 
-    let pda_seed = entry.pda_seed.ok_or(ExecutionFailureKind::KeyNotFoundError)?;
-    let program_id = entry.pda_program_id.ok_or(ExecutionFailureKind::KeyNotFoundError)?;
+    let pda_seed = entry
+        .pda_seed
+        .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
+    let program_id = entry
+        .pda_program_id
+        .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
 
     let holder = wallet
         .storage

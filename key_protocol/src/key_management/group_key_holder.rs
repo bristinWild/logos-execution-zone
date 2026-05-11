@@ -347,7 +347,8 @@ mod tests {
         ]);
         // AccountId is derived from (program_id, seed, npk), so it changes when npk changes.
         // We verify npk is pinned, and AccountId is deterministically derived from it.
-        let expected_account_id = AccountId::for_private_pda(&program_id, &seed, &expected_npk, u128::MAX);
+        let expected_account_id =
+            AccountId::for_private_pda(&program_id, &seed, &expected_npk, u128::MAX);
 
         assert_eq!(npk, expected_npk);
         assert_eq!(account_id, expected_account_id);
