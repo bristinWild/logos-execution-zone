@@ -7,7 +7,7 @@ use std::{path::PathBuf, time::Duration};
 
 use anyhow::{Context as _, Result};
 use integration_tests::{
-    NSSA_PROGRAM_FOR_TEST_AUTH_TRANSFER_PROXY, TIME_TO_WAIT_FOR_BLOCK_SECONDS, TestContext,
+    NSSA_PROGRAM_FOR_TEST_AUTH_TRANSFER_PDA_PROXY, TIME_TO_WAIT_FOR_BLOCK_SECONDS, TestContext,
     verify_commitment_is_in_state,
 };
 use log::info;
@@ -55,7 +55,7 @@ async fn fund_private_pda(
                 },
             ],
             Program::serialize_instruction((seed, amount, auth_transfer_id, true))
-                .context("failed to serialize auth_transfer_proxy fund instruction")?,
+                .context("failed to serialize auth_transfer_pda_proxy fund instruction")?,
             proxy_program,
         )
         .await
@@ -91,7 +91,7 @@ async fn spend_private_pda(
                 },
             ],
             Program::serialize_instruction((seed, amount, auth_transfer_id, false))
-                .context("failed to serialize auth_transfer_proxy instruction")?,
+                .context("failed to serialize auth_transfer_pda_proxy instruction")?,
             spend_program,
         )
         .await
@@ -126,9 +126,9 @@ async fn private_pda_family_members_receive_and_spend() -> Result<()> {
     let proxy = {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../artifacts/test_program_methods")
-            .join(NSSA_PROGRAM_FOR_TEST_AUTH_TRANSFER_PROXY);
+            .join(NSSA_PROGRAM_FOR_TEST_AUTH_TRANSFER_PDA_PROXY);
         Program::new(std::fs::read(&path).with_context(|| format!("reading {path:?}"))?)
-            .context("invalid auth_transfer_proxy binary")?
+            .context("invalid auth_transfer_pda_proxy binary")?
     };
     let auth_transfer = Program::authenticated_transfer_program();
     let proxy_id = proxy.id();

@@ -692,7 +692,7 @@ mod tests {
     /// to `PrivateAccountKind::Pda` carrying the correct `(program_id, seed, identifier)`.
     #[test]
     fn private_pda_update_encrypts_pda_kind_with_identifier() {
-        let program = Program::auth_transfer_proxy();
+        let program = Program::auth_transfer_pda_proxy();
         let auth_transfer = Program::authenticated_transfer_program();
         let keys = test_private_account_keys_1();
         let npk = keys.npk();
@@ -773,7 +773,7 @@ mod tests {
 
     #[test]
     fn private_pda_update_identifier_mismatch_fails() {
-        let program = Program::auth_transfer_proxy();
+        let program = Program::auth_transfer_pda_proxy();
         let auth_transfer = Program::authenticated_transfer_program();
         let keys = test_private_account_keys_1();
         let npk = keys.npk();
