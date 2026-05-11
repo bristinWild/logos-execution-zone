@@ -370,8 +370,12 @@ impl ExecutionState {
                                 pre_account_id, pda,
                                 "Invalid private PDA claim for account {pre_account_id}"
                             );
-                            self.private_pda_bound_positions
-                                .insert(pre_state_position, (program_id, seed));
+                            bind_private_pda_position(
+                                &mut self.private_pda_bound_positions,
+                                pre_state_position,
+                                program_id,
+                                seed,
+                            );
                             assert_family_binding(
                                 &mut self.pda_family_binding,
                                 program_id,
@@ -435,6 +439,24 @@ fn assert_family_binding(
     }
 }
 
+fn bind_private_pda_position(
+    map: &mut HashMap<usize, (ProgramId, PdaSeed)>,
+    position: usize,
+    program_id: ProgramId,
+    seed: PdaSeed,
+) {
+    match map.entry(position) {
+        Entry::Occupied(e) => assert_eq!(
+            *e.get(),
+            (program_id, seed),
+            "Duplicate binding at position {position}: conflicting (program_id, seed)"
+        ),
+        Entry::Vacant(e) => {
+            e.insert((program_id, seed));
+        }
+    }
+}
+
 /// Resolve the authorization state of a `pre_state` seen again in a chained call and record
 /// any resulting bindings. Returns `true` if the `pre_state` is authorized through either a
 /// previously-seen authorization or a matching caller seed (under the public or private
@@ -477,7 +499,12 @@ fn resolve_authorization_and_record_bindings(
     if let Some((seed, is_private_form, caller)) = matched_caller_seed {
         assert_family_binding(pda_family_binding, caller, seed, pre_account_id);
         if is_private_form {
-            private_pda_bound_positions.insert(pre_state_position, (caller, seed));
+            bind_private_pda_position(
+                private_pda_bound_positions,
+                pre_state_position,
+                caller,
+                seed,
+            );
         }
     }
 
