@@ -3797,10 +3797,16 @@ dependencies = [
 name = "indexer_ffi"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "cbindgen",
  "indexer_service",
+ "indexer_service_protocol",
+ "indexer_service_rpc",
+ "jsonrpsee",
  "log",
+ "nssa",
  "tokio",
+ "url",
 ]
 
 [[package]]
@@ -3916,6 +3922,7 @@ dependencies = [
  "hex",
  "indexer_ffi",
  "indexer_service",
+ "indexer_service_protocol",
  "indexer_service_rpc",
  "jsonrpsee",
  "key_protocol",

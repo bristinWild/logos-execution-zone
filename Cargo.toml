@@ -37,7 +37,7 @@ members = [
   "examples/program_deployment/methods",
   "examples/program_deployment/methods/guest",
   "testnet_initial_state",
-  "indexer_ffi",
+  "indexer/ffi",
 ]
 
 [workspace.dependencies]
@@ -57,7 +57,7 @@ indexer_service_protocol = { path = "indexer/service/protocol" }
 indexer_service_rpc = { path = "indexer/service/rpc" }
 wallet = { path = "wallet" }
 wallet-ffi = { path = "wallet-ffi", default-features = false }
-indexer_ffi = { path = "indexer_ffi" }
+indexer_ffi = { path = "indexer/ffi" }
 clock_core = { path = "programs/clock/core" }
 token_core = { path = "programs/token/core" }
 token_program = { path = "programs/token" }

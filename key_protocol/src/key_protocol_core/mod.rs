@@ -21,7 +21,22 @@ pub struct UserPrivateAccountData {
     pub accounts: Vec<(PrivateAccountKind, Account)>,
 }
 
+/// Metadata for a shared account (GMS-derived), stored alongside the cached plaintext state.
+/// The group label and identifier (or PDA seed) are needed to re-derive keys during sync.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SharedAccountEntry {
+    pub group_label: String,
+    pub identifier: Identifier,
+    /// For PDA accounts, the seed and program ID used to derive keys via `derive_keys_for_pda`.
+    /// `None` for regular shared accounts (keys derived from identifier via derivation seed).
+    #[serde(default)]
+    pub pda_seed: Option<nssa_core::program::PdaSeed>,
+    #[serde(default)]
+    pub pda_program_id: Option<nssa_core::program::ProgramId>,
+    pub account: Account,
+}
+
+#[derive(Clone, Debug)]
 pub struct NSSAUserData {
     /// Default public accounts.
     pub default_pub_account_signing_keys: BTreeMap<nssa::AccountId, nssa::PrivateKey>,
@@ -31,17 +46,16 @@ pub struct NSSAUserData {
     pub public_key_tree: KeyTreePublic,
     /// Tree of private keys.
     pub private_key_tree: KeyTreePrivate,
-    /// Group key holders for private PDA groups, keyed by a human-readable label.
-    /// Defaults to empty for backward compatibility with wallets that predate group PDAs.
-    /// An older wallet binary that re-serializes this struct will drop the field.
-    #[serde(default)]
+    /// Group key holders for shared account management, keyed by a human-readable label.
     pub group_key_holders: BTreeMap<String, GroupKeyHolder>,
-    /// Cached plaintext state of private PDA accounts, keyed by `AccountId`.
-    /// Updated after each private PDA transaction by decrypting the circuit output.
-    /// The sequencer only stores encrypted commitments, so this local cache is the
-    /// only source of plaintext state for private PDAs.
-    #[serde(default, alias = "group_pda_accounts")]
-    pub pda_accounts: BTreeMap<nssa::AccountId, nssa_core::account::Account>,
+    /// Cached plaintext state of shared private accounts (PDAs and regular shared accounts),
+    /// keyed by `AccountId`. Each entry stores the group label and identifier needed
+    /// to re-derive keys during sync.
+    pub shared_private_accounts: BTreeMap<nssa::AccountId, SharedAccountEntry>,
+    /// Dedicated sealing secret key for GMS distribution. Generated once via
+    /// `wallet group new-sealing-key`. The corresponding public key is shared with
+    /// group members so they can seal GMS for this wallet.
+    pub sealing_secret_key: Option<nssa_core::encryption::Scalar>,
 }
 
 impl NSSAUserData {
@@ -102,7 +116,8 @@ impl NSSAUserData {
             public_key_tree,
             private_key_tree,
             group_key_holders: BTreeMap::new(),
-            pda_accounts: BTreeMap::new(),
+            shared_private_accounts: BTreeMap::new(),
+            sealing_secret_key: None,
         })
     }
 
@@ -227,6 +242,42 @@ impl NSSAUserData {
     pub fn insert_group_key_holder(&mut self, label: String, holder: GroupKeyHolder) {
         self.group_key_holders.insert(label, holder);
     }
+
+    /// Returns the cached account for a shared private account, if it exists.
+    #[must_use]
+    pub fn shared_private_account(
+        &self,
+        account_id: &nssa::AccountId,
+    ) -> Option<&SharedAccountEntry> {
+        self.shared_private_accounts.get(account_id)
+    }
+
+    /// Inserts or replaces a shared private account entry.
+    pub fn insert_shared_private_account(
+        &mut self,
+        account_id: nssa::AccountId,
+        entry: SharedAccountEntry,
+    ) {
+        self.shared_private_accounts.insert(account_id, entry);
+    }
+
+    /// Updates the cached account state for a shared private account.
+    pub fn update_shared_private_account_state(
+        &mut self,
+        account_id: &nssa::AccountId,
+        account: nssa_core::account::Account,
+    ) {
+        if let Some(entry) = self.shared_private_accounts.get_mut(account_id) {
+            entry.account = account;
+        }
+    }
+
+    /// Iterates over all shared private accounts.
+    pub fn shared_private_accounts_iter(
+        &self,
+    ) -> impl Iterator<Item = (&nssa::AccountId, &SharedAccountEntry)> {
+        self.shared_private_accounts.iter()
+    }
 }
 
 impl Default for NSSAUserData {
@@ -264,6 +315,92 @@ mod tests {
     fn group_key_holders_default_empty() {
         let user_data = NSSAUserData::default();
         assert!(user_data.group_key_holders.is_empty());
+        assert!(user_data.shared_private_accounts.is_empty());
+    }
+
+    #[test]
+    fn shared_account_entry_serde_round_trip() {
+        use nssa_core::program::PdaSeed;
+
+        let entry = SharedAccountEntry {
+            group_label: String::from("test-group"),
+            identifier: 42,
+            pda_seed: None,
+            pda_program_id: None,
+            account: nssa_core::account::Account::default(),
+        };
+        let encoded = bincode::serialize(&entry).expect("serialize");
+        let decoded: SharedAccountEntry = bincode::deserialize(&encoded).expect("deserialize");
+        assert_eq!(decoded.group_label, "test-group");
+        assert_eq!(decoded.identifier, 42);
+        assert!(decoded.pda_seed.is_none());
+
+        let pda_entry = SharedAccountEntry {
+            group_label: String::from("pda-group"),
+            identifier: u128::MAX,
+            pda_seed: Some(PdaSeed::new([7_u8; 32])),
+            pda_program_id: Some([9; 8]),
+            account: nssa_core::account::Account::default(),
+        };
+        let pda_encoded = bincode::serialize(&pda_entry).expect("serialize pda");
+        let pda_decoded: SharedAccountEntry =
+            bincode::deserialize(&pda_encoded).expect("deserialize pda");
+        assert_eq!(pda_decoded.group_label, "pda-group");
+        assert_eq!(pda_decoded.identifier, u128::MAX);
+        assert_eq!(pda_decoded.pda_seed.unwrap(), PdaSeed::new([7_u8; 32]));
+    }
+
+    #[test]
+    fn shared_account_entry_none_pda_seed_round_trips() {
+        // Verify that an entry with pda_seed=None serializes and deserializes correctly,
+        // confirming the #[serde(default)] attribute works for backward compatibility.
+        let entry = SharedAccountEntry {
+            group_label: String::from("old"),
+            identifier: 1,
+            pda_seed: None,
+            pda_program_id: None,
+            account: nssa_core::account::Account::default(),
+        };
+        let encoded = bincode::serialize(&entry).expect("serialize");
+        let decoded: SharedAccountEntry = bincode::deserialize(&encoded).expect("deserialize");
+        assert_eq!(decoded.group_label, "old");
+        assert_eq!(decoded.identifier, 1);
+        assert!(decoded.pda_seed.is_none());
+    }
+
+    #[test]
+    fn shared_account_derives_consistent_keys_from_group() {
+        use nssa_core::program::PdaSeed;
+
+        let mut user_data = NSSAUserData::default();
+        let gms_holder = GroupKeyHolder::from_gms([42_u8; 32]);
+        user_data.insert_group_key_holder(String::from("my-group"), gms_holder);
+
+        let holder = user_data.group_key_holder("my-group").unwrap();
+
+        // Regular shared account: derive via tag
+        let tag = [1_u8; 32];
+        let keys_a = holder.derive_keys_for_shared_account(&tag);
+        let keys_b = holder.derive_keys_for_shared_account(&tag);
+        assert_eq!(
+            keys_a.generate_nullifier_public_key(),
+            keys_b.generate_nullifier_public_key(),
+        );
+
+        // PDA shared account: derive via seed
+        let seed = PdaSeed::new([2_u8; 32]);
+        let pda_keys_a = holder.derive_keys_for_pda(&[9; 8], &seed);
+        let pda_keys_b = holder.derive_keys_for_pda(&[9; 8], &seed);
+        assert_eq!(
+            pda_keys_a.generate_nullifier_public_key(),
+            pda_keys_b.generate_nullifier_public_key(),
+        );
+
+        // PDA and shared derivations don't collide
+        assert_ne!(
+            keys_a.generate_nullifier_public_key(),
+            pda_keys_a.generate_nullifier_public_key(),
+        );
     }
 
     #[test]

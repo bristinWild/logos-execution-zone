@@ -470,12 +470,13 @@ mod tests {
         );
     }
 
-    /// Group PDA deposit: creates a new PDA and transfers balance from the
-    /// counterparty. Both accounts owned by `private_pda_spender`.
+    /// PDA init: initializes a new PDA under `authenticated_transfer`'s ownership.
+    /// The `auth_transfer_proxy` program chains to `authenticated_transfer` with `pda_seeds`
+    /// to establish authorization and the private PDA binding.
     #[test]
-    fn group_pda_deposit() {
-        let program = Program::private_pda_spender();
-        let noop = Program::noop();
+    fn private_pda_init() {
+        let program = Program::auth_transfer_proxy();
+        let auth_transfer = Program::authenticated_transfer_program();
         let keys = test_private_account_keys_1();
         let npk = keys.npk();
         let seed = PdaSeed::new([42; 32]);
@@ -485,92 +486,129 @@ mod tests {
         let pda_id = AccountId::for_private_pda(&program.id(), &seed, &npk, 0);
         let pda_pre = AccountWithMetadata::new(Account::default(), false, pda_id);
 
-        // Sender (mask 0, public, owned by this program, has balance)
+        let auth_id = auth_transfer.id();
+        let program_with_deps =
+            ProgramWithDependencies::new(program, [(auth_id, auth_transfer)].into());
+
+        // is_withdraw=false triggers init path (1 pre-state)
+        let instruction = Program::serialize_instruction((seed, auth_id, 0_u128, false)).unwrap();
+
+        let result = execute_and_prove(
+            vec![pda_pre],
+            instruction,
+            vec![InputAccountIdentity::PrivatePdaInit {
+                npk,
+                ssk: shared_secret_pda,
+                identifier: 0,
+            }],
+            &program_with_deps,
+        );
+
+        let (output, _proof) = result.expect("PDA init should succeed");
+        assert_eq!(output.new_commitments.len(), 1);
+    }
+
+    /// PDA withdraw: chains to `authenticated_transfer` to move balance from PDA to recipient.
+    /// Uses a default PDA (amount=0) because testing with a pre-funded PDA requires a
+    /// two-tx sequence with membership proofs.
+    #[test]
+    fn private_pda_withdraw() {
+        let program = Program::auth_transfer_proxy();
+        let auth_transfer = Program::authenticated_transfer_program();
+        let keys = test_private_account_keys_1();
+        let npk = keys.npk();
+        let seed = PdaSeed::new([42; 32]);
+        let shared_secret_pda = SharedSecretKey::new(&[55; 32], &keys.vpk());
+
+        // PDA (new, private PDA)
+        let pda_id = AccountId::for_private_pda(&program.id(), &seed, &npk, 0);
+        let pda_pre = AccountWithMetadata::new(Account::default(), false, pda_id);
+
+        // Recipient (public)
+        let recipient_id = AccountId::new([88; 32]);
+        let recipient_pre = AccountWithMetadata::new(
+            Account {
+                program_owner: auth_transfer.id(),
+                balance: 10000,
+                ..Account::default()
+            },
+            true,
+            recipient_id,
+        );
+
+        let auth_id = auth_transfer.id();
+        let program_with_deps =
+            ProgramWithDependencies::new(program, [(auth_id, auth_transfer)].into());
+
+        // is_withdraw=true, amount=0 (PDA has no balance yet)
+        let instruction = Program::serialize_instruction((seed, auth_id, 0_u128, true)).unwrap();
+
+        let result = execute_and_prove(
+            vec![pda_pre, recipient_pre],
+            instruction,
+            vec![
+                InputAccountIdentity::PrivatePdaInit {
+                    npk,
+                    ssk: shared_secret_pda,
+                    identifier: 0,
+                },
+                InputAccountIdentity::Public,
+            ],
+            &program_with_deps,
+        );
+
+        let (output, _proof) = result.expect("PDA withdraw should succeed");
+        assert_eq!(output.new_commitments.len(), 1);
+    }
+
+    /// Shared regular private account: receives funds via `authenticated_transfer` directly,
+    /// no custom program needed. This demonstrates the non-PDA shared account flow where
+    /// keys are derived from GMS via `derive_keys_for_shared_account`. The shared account
+    /// uses the standard unauthorized private account path and works with auth-transfer's
+    /// transfer path like any other private account.
+    #[test]
+    fn shared_account_receives_via_auth_transfer() {
+        let program = Program::authenticated_transfer_program();
+        let shared_keys = test_private_account_keys_1();
+        let shared_npk = shared_keys.npk();
+        let shared_identifier: u128 = 42;
+        let shared_secret = SharedSecretKey::new(&[55; 32], &shared_keys.vpk());
+
+        // Sender: public account with balance, owned by auth-transfer
         let sender_id = AccountId::new([99; 32]);
-        let sender_pre = AccountWithMetadata::new(
+        let sender = AccountWithMetadata::new(
             Account {
                 program_owner: program.id(),
-                balance: 10000,
+                balance: 1000,
                 ..Account::default()
             },
             true,
             sender_id,
         );
 
-        let noop_id = noop.id();
-        let program_with_deps = ProgramWithDependencies::new(program, [(noop_id, noop)].into());
+        // Recipient: shared private account (new, unauthorized)
+        let shared_account_id = AccountId::from((&shared_npk, shared_identifier));
+        let recipient = AccountWithMetadata::new(Account::default(), false, shared_account_id);
 
-        let instruction = Program::serialize_instruction((seed, noop_id, 500_u128, true)).unwrap();
-
-        // PDA is mask 3 (private PDA), sender is mask 0 (public).
-        // The noop chained call is required to establish the mask-3 (seed, npk) binding
-        // that the circuit enforces for private PDAs. Without a caller providing pda_seeds,
-        // the circuit's binding check rejects the account.
-        let result = execute_and_prove(
-            vec![pda_pre, sender_pre],
-            instruction,
-            vec![
-                InputAccountIdentity::PrivatePdaInit {
-                    npk,
-                    ssk: shared_secret_pda,
-                    identifier: 0,
-                },
-                InputAccountIdentity::Public,
-            ],
-            &program_with_deps,
-        );
-
-        let (output, _proof) = result.expect("group PDA deposit should succeed");
-        // Only PDA (mask 3) produces a commitment; sender (mask 0) is public.
-        assert_eq!(output.new_commitments.len(), 1);
-    }
-
-    /// Group PDA spend binding: the noop chained call with `pda_seeds` establishes
-    /// the mask-3 binding for an existing-but-default PDA. Uses amount=0 because
-    /// testing with a pre-funded PDA requires a two-tx sequence with membership proofs.
-    #[test]
-    fn group_pda_spend_binding() {
-        let program = Program::private_pda_spender();
-        let noop = Program::noop();
-        let keys = test_private_account_keys_1();
-        let npk = keys.npk();
-        let seed = PdaSeed::new([42; 32]);
-        let shared_secret_pda = SharedSecretKey::new(&[55; 32], &keys.vpk());
-
-        let pda_id = AccountId::for_private_pda(&program.id(), &seed, &npk, 0);
-        let pda_pre = AccountWithMetadata::new(Account::default(), false, pda_id);
-
-        let bob_id = AccountId::new([88; 32]);
-        let bob_pre = AccountWithMetadata::new(
-            Account {
-                program_owner: program.id(),
-                balance: 10000,
-                ..Account::default()
-            },
-            true,
-            bob_id,
-        );
-
-        let noop_id = noop.id();
-        let program_with_deps = ProgramWithDependencies::new(program, [(noop_id, noop)].into());
-
-        let instruction = Program::serialize_instruction((seed, noop_id, 0_u128, false)).unwrap();
+        let balance_to_move: u128 = 100;
+        let instruction = Program::serialize_instruction(balance_to_move).unwrap();
 
         let result = execute_and_prove(
-            vec![pda_pre, bob_pre],
+            vec![sender, recipient],
             instruction,
             vec![
-                InputAccountIdentity::PrivatePdaInit {
-                    npk,
-                    ssk: shared_secret_pda,
-                    identifier: 0,
-                },
                 InputAccountIdentity::Public,
+                InputAccountIdentity::PrivateUnauthorized {
+                    npk: shared_npk,
+                    ssk: shared_secret,
+                    identifier: shared_identifier,
+                },
             ],
-            &program_with_deps,
+            &program.into(),
         );
 
-        let (output, _proof) = result.expect("group PDA spend binding should succeed");
+        let (output, _proof) = result.expect("shared account receive should succeed");
+        // Sender is public (no commitment), recipient is private (1 commitment)
         assert_eq!(output.new_commitments.len(), 1);
     }
 
