@@ -39,6 +39,15 @@ pub enum PrivacyPreservingAccount {
         vpk: ViewingPublicKey,
         identifier: Identifier,
     },
+    /// A shared private PDA with externally-provided keys (e.g. from GMS).
+    /// `account_id` was derived via [`AccountId::for_private_pda`].
+    PrivatePdaShared {
+        account_id: AccountId,
+        nsk: NullifierSecretKey,
+        npk: NullifierPublicKey,
+        vpk: ViewingPublicKey,
+        identifier: Identifier,
+    },
 }
 
 impl PrivacyPreservingAccount {
@@ -56,6 +65,7 @@ impl PrivacyPreservingAccount {
                 | Self::PrivatePdaOwned(_)
                 | Self::PrivatePdaForeign { .. }
                 | Self::PrivateShared { .. }
+                | Self::PrivatePdaShared { .. }
         )
     }
 }
@@ -100,7 +110,7 @@ impl AccountManager {
                     State::Public { account, sk }
                 }
                 PrivacyPreservingAccount::PrivateOwned(account_id) => {
-                    let pre = private_acc_preparation(wallet, account_id, false).await?;
+                    let pre = private_key_tree_acc_preparation(wallet, account_id, false).await?;
 
                     State::Private(pre)
                 }
@@ -129,7 +139,7 @@ impl AccountManager {
                     State::Private(pre)
                 }
                 PrivacyPreservingAccount::PrivatePdaOwned(account_id) => {
-                    let pre = private_acc_preparation(wallet, account_id, true).await?;
+                    let pre = private_key_tree_acc_preparation(wallet, account_id, true).await?;
                     State::Private(pre)
                 }
                 PrivacyPreservingAccount::PrivatePdaForeign {
@@ -162,7 +172,25 @@ impl AccountManager {
                     vpk,
                     identifier,
                 } => {
-                    let pre = private_shared_preparation(wallet, nsk, npk, vpk, identifier).await?;
+                    let account_id = nssa::AccountId::from((&npk, identifier));
+                    let pre = private_shared_acc_preparation(
+                        wallet, account_id, nsk, npk, vpk, identifier, false,
+                    )
+                    .await?;
+
+                    State::Private(pre)
+                }
+                PrivacyPreservingAccount::PrivatePdaShared {
+                    account_id,
+                    nsk,
+                    npk,
+                    vpk,
+                    identifier,
+                } => {
+                    let pre = private_shared_acc_preparation(
+                        wallet, account_id, nsk, npk, vpk, identifier, true,
+                    )
+                    .await?;
 
                     State::Private(pre)
                 }
@@ -295,71 +323,63 @@ struct AccountPreparedData {
     is_pda: bool,
 }
 
-async fn private_acc_preparation(
+async fn private_key_tree_acc_preparation(
     wallet: &WalletCore,
     account_id: AccountId,
     is_pda: bool,
 ) -> Result<AccountPreparedData, ExecutionFailureKind> {
-    if let Some((from_keys, from_acc, from_identifier)) =
-        wallet.storage.user_data.get_private_account(account_id)
-    {
-        let nsk = from_keys.private_key_holder.nullifier_secret_key;
-        let from_npk = from_keys.nullifier_public_key;
-        let from_vpk = from_keys.viewing_public_key;
+    let (from_keys, from_acc, from_identifier) = wallet
+        .storage
+        .user_data
+        .get_private_account(account_id)
+        .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
 
-        // TODO: Remove this unwrap, error types must be compatible
-        let proof = wallet
-            .check_private_account_initialized(account_id)
-            .await
-            .unwrap();
+    let nsk = from_keys.private_key_holder.nullifier_secret_key;
+    let from_npk = from_keys.nullifier_public_key;
+    let from_vpk = from_keys.viewing_public_key;
 
-        // TODO: Technically we could allow unauthorized owned accounts, but currently we don't have
-        // support from that in the wallet.
-        let sender_pre = AccountWithMetadata::new(from_acc.clone(), true, account_id);
+    // TODO: Remove this unwrap, error types must be compatible
+    let proof = wallet
+        .check_private_account_initialized(account_id)
+        .await
+        .unwrap();
 
-        let eph_holder = EphemeralKeyHolder::new(&from_npk);
-        let ssk = eph_holder.calculate_shared_secret_sender(&from_vpk);
-        let epk = eph_holder.generate_ephemeral_public_key();
+    // TODO: Technically we could allow unauthorized owned accounts, but currently we don't have
+    // support from that in the wallet.
+    let sender_pre = AccountWithMetadata::new(from_acc.clone(), true, account_id);
 
-        return Ok(AccountPreparedData {
-            nsk: Some(nsk),
-            npk: from_npk,
-            identifier: from_identifier,
-            vpk: from_vpk,
-            pre_state: sender_pre,
-            proof,
-            ssk,
-            epk,
-            is_pda,
-        });
-    }
+    let eph_holder = EphemeralKeyHolder::new(&from_npk);
+    let ssk = eph_holder.calculate_shared_secret_sender(&from_vpk);
+    let epk = eph_holder.generate_ephemeral_public_key();
 
-    // Fallback: check shared storage for group PDAs
-    let entry = wallet
+    Ok(AccountPreparedData {
+        nsk: Some(nsk),
+        npk: from_npk,
+        identifier: from_identifier,
+        vpk: from_vpk,
+        pre_state: sender_pre,
+        proof,
+        ssk,
+        epk,
+        is_pda,
+    })
+}
+
+async fn private_shared_acc_preparation(
+    wallet: &WalletCore,
+    account_id: AccountId,
+    nsk: NullifierSecretKey,
+    npk: NullifierPublicKey,
+    vpk: ViewingPublicKey,
+    identifier: Identifier,
+    is_pda: bool,
+) -> Result<AccountPreparedData, ExecutionFailureKind> {
+    let acc = wallet
         .storage
         .user_data
         .shared_private_account(&account_id)
-        .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
-
-    let pda_seed = entry
-        .pda_seed
-        .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
-    let program_id = entry
-        .pda_program_id
-        .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
-
-    let holder = wallet
-        .storage
-        .user_data
-        .group_key_holder(&entry.group_label)
-        .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
-
-    let keys = holder.derive_keys_for_pda(&program_id, &pda_seed);
-    let nsk = keys.nullifier_secret_key;
-    let npk = keys.generate_nullifier_public_key();
-    let vpk = keys.generate_viewing_public_key();
-    let identifier = entry.identifier;
-    let acc = entry.account.clone();
+        .map(|e| e.account.clone())
+        .unwrap_or_default();
 
     let exists = acc != nssa_core::account::Account::default();
     let pre_state = AccountWithMetadata::new(acc, exists, account_id);
@@ -386,52 +406,7 @@ async fn private_acc_preparation(
         proof,
         ssk,
         epk,
-        is_pda: true,
-    })
-}
-
-async fn private_shared_preparation(
-    wallet: &WalletCore,
-    nsk: NullifierSecretKey,
-    npk: NullifierPublicKey,
-    vpk: ViewingPublicKey,
-    identifier: Identifier,
-) -> Result<AccountPreparedData, ExecutionFailureKind> {
-    let account_id = nssa::AccountId::from((&npk, identifier));
-
-    let acc = wallet
-        .storage
-        .user_data
-        .shared_private_account(&account_id)
-        .map(|e| e.account.clone())
-        .unwrap_or_default();
-
-    let exists = acc != nssa_core::account::Account::default();
-    let pre_state = AccountWithMetadata::new(acc, exists, (&npk, identifier));
-
-    let proof = if exists {
-        wallet
-            .check_private_account_initialized(account_id)
-            .await
-            .unwrap_or(None)
-    } else {
-        None
-    };
-
-    let eph_holder = EphemeralKeyHolder::new(&npk);
-    let ssk = eph_holder.calculate_shared_secret_sender(&vpk);
-    let epk = eph_holder.generate_ephemeral_public_key();
-
-    Ok(AccountPreparedData {
-        nsk: exists.then_some(nsk),
-        npk,
-        identifier,
-        is_pda: false,
-        vpk,
-        pre_state,
-        proof,
-        ssk,
-        epk,
+        is_pda,
     })
 }
 

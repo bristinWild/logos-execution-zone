@@ -345,8 +345,15 @@ impl WalletCore {
             .user_data
             .group_key_holder(&entry.group_label)?;
 
-        if entry.pda_seed.is_some() {
-            Some(PrivacyPreservingAccount::PrivatePdaOwned(account_id))
+        if let (Some(pda_seed), Some(program_id)) = (entry.pda_seed, entry.pda_program_id) {
+            let keys = holder.derive_keys_for_pda(&program_id, &pda_seed);
+            Some(PrivacyPreservingAccount::PrivatePdaShared {
+                account_id,
+                nsk: keys.nullifier_secret_key,
+                npk: keys.generate_nullifier_public_key(),
+                vpk: keys.generate_viewing_public_key(),
+                identifier: entry.identifier,
+            })
         } else {
             let derivation_seed = {
                 use sha2::Digest as _;
