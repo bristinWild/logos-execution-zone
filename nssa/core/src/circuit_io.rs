@@ -30,8 +30,8 @@ pub enum InputAccountIdentity {
     Public,
     /// Init of an authorized standalone private account: no membership proof. The `pre_state`
     /// must be `Account::default()`. The `account_id` is derived as
-    /// `AccountId::from((&NullifierPublicKey::from(nsk), identifier))` and matched against
-    /// `pre_state.account_id`.
+    /// `AccountId::for_regular_private_account(&NullifierPublicKey::from(nsk), identifier)` and
+    /// matched against `pre_state.account_id`.
     PrivateAuthorizedInit {
         ssk: SharedSecretKey,
         nsk: NullifierSecretKey,
@@ -53,19 +53,22 @@ pub enum InputAccountIdentity {
         identifier: Identifier,
     },
     /// Init of a private PDA, unauthorized. The npk-to-account_id binding is proven upstream
-    /// via `Claim::Pda(seed)` or a caller's `pda_seeds` match. Identifier is fixed by
-    /// convention to `PRIVATE_PDA_FIXED_IDENTIFIER` and not carried per-input.
+    /// via `Claim::Pda(seed)` or a caller's `pda_seeds` match. The identifier diversifies the
+    /// PDA within the `(program_id, seed, npk)` family: `AccountId::for_private_pda` uses it
+    /// as the 4th input.
     PrivatePdaInit {
         npk: NullifierPublicKey,
         ssk: SharedSecretKey,
+        identifier: Identifier,
     },
     /// Update of an existing private PDA, authorized, with membership proof. `npk` is derived
     /// from `nsk`. Authorization is established upstream by a caller `pda_seeds` match or a
-    /// previously-seen authorization in a chained call. Identifier is fixed.
+    /// previously-seen authorization in a chained call.
     PrivatePdaUpdate {
         ssk: SharedSecretKey,
         nsk: NullifierSecretKey,
         membership_proof: MembershipProof,
+        identifier: Identifier,
     },
 }
 
@@ -83,13 +86,17 @@ impl InputAccountIdentity {
         )
     }
 
-    /// For private PDA variants, return the nullifier public key. `Init` carries it directly;
-    /// `Update` derives it from `nsk`. For non-PDA variants returns `None`.
+    /// For private PDA variants, return the `(npk, identifier)` pair. `Init` carries both
+    /// directly; `Update` derives `npk` from `nsk`. For non-PDA variants returns `None`.
     #[must_use]
-    pub fn npk_if_private_pda(&self) -> Option<NullifierPublicKey> {
+    pub fn npk_if_private_pda(&self) -> Option<(NullifierPublicKey, Identifier)> {
         match self {
-            Self::PrivatePdaInit { npk, .. } => Some(*npk),
-            Self::PrivatePdaUpdate { nsk, .. } => Some(NullifierPublicKey::from(nsk)),
+            Self::PrivatePdaInit {
+                npk, identifier, ..
+            } => Some((*npk, *identifier)),
+            Self::PrivatePdaUpdate {
+                nsk, identifier, ..
+            } => Some((NullifierPublicKey::from(nsk), *identifier)),
             Self::Public
             | Self::PrivateAuthorizedInit { .. }
             | Self::PrivateAuthorizedUpdate { .. }

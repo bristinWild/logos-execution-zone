@@ -333,6 +333,16 @@ mod tests {
         }
 
         #[must_use]
+        pub fn pda_fund_spend_proxy() -> Self {
+            use test_program_methods::{PDA_FUND_SPEND_PROXY_ELF, PDA_FUND_SPEND_PROXY_ID};
+
+            Self {
+                id: PDA_FUND_SPEND_PROXY_ID,
+                elf: PDA_FUND_SPEND_PROXY_ELF.to_vec(),
+            }
+        }
+
+        #[must_use]
         pub fn changer_claimer() -> Self {
             use test_program_methods::{CHANGER_CLAIMER_ELF, CHANGER_CLAIMER_ID};
 

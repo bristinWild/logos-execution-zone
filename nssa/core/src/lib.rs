@@ -12,6 +12,7 @@ pub use commitment::{
 };
 pub use encryption::{EncryptionScheme, SharedSecretKey};
 pub use nullifier::{Identifier, Nullifier, NullifierPublicKey, NullifierSecretKey};
+pub use program::PrivateAccountKind;
 
 pub mod account;
 mod circuit_io;

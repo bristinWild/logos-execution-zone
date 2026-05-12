@@ -55,6 +55,7 @@ async fn group_create_and_shared_account_registration() -> Result<()> {
         pda: false,
         seed: None,
         program_id: None,
+        identifier: None,
     }));
 
     let result = wallet::cli::execute_subcommand(ctx.wallet_mut(), command).await?;
@@ -170,6 +171,7 @@ async fn fund_shared_account_from_public() -> Result<()> {
         pda: false,
         seed: None,
         program_id: None,
+        identifier: None,
     }));
     let result = wallet::cli::execute_subcommand(ctx.wallet_mut(), command).await?;
     let SubcommandReturnValue::RegisterAccount {

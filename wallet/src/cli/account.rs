@@ -108,6 +108,10 @@ pub enum NewSubcommand {
         #[arg(long, requires = "pda")]
         /// Program ID as hex string.
         program_id: Option<String>,
+        #[arg(long, requires = "pda")]
+        /// Identifier that diversifies this PDA within the (`program_id`, seed, npk) family.
+        /// Defaults to a random value if not specified.
+        identifier: Option<u128>,
     },
     /// Recommended for receiving from multiple senders: creates a key node (npk + vpk) without
     /// registering any account.
@@ -208,6 +212,7 @@ impl WalletSubcommand for NewSubcommand {
                 pda,
                 seed,
                 program_id,
+                identifier,
             } => {
                 if let Some(label) = &label
                     && wallet_core
@@ -239,7 +244,12 @@ impl WalletSubcommand for NewSubcommand {
                         pid[i] = u32::from_le_bytes(chunk.try_into().unwrap());
                     }
 
-                    wallet_core.create_shared_pda_account(&group, pda_seed, pid)?
+                    wallet_core.create_shared_pda_account(
+                        &group,
+                        pda_seed,
+                        pid,
+                        identifier.unwrap_or_else(rand::random),
+                    )?
                 } else {
                     wallet_core.create_shared_regular_account(&group)?
                 };
