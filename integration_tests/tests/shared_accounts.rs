@@ -155,7 +155,6 @@ async fn group_invite_join_key_agreement() -> Result<()> {
 /// Fund a shared account from a public account via auth-transfer, then sync.
 /// TODO: Requires auth-transfer init to work with shared accounts (authorization flow).
 #[test]
-#[ignore = "Requires auth-transfer init to work with shared accounts (authorization flow)"]
 async fn fund_shared_account_from_public() -> Result<()> {
     let mut ctx = TestContext::new().await?;
 
@@ -189,6 +188,10 @@ async fn fund_shared_account_from_public() -> Result<()> {
     wallet::cli::execute_subcommand(ctx.wallet_mut(), command).await?;
 
     tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    // Sync private accounts
+    let command = Command::Account(AccountSubcommand::SyncPrivate);
+    wallet::cli::execute_subcommand(ctx.wallet_mut(), command).await?;
 
     // Fund from a public account
     let from_public = ctx.existing_public_accounts()[0];

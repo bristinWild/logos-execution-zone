@@ -505,8 +505,17 @@ impl WalletCore {
 
     #[must_use]
     pub fn get_private_account_commitment(&self, account_id: AccountId) -> Option<Commitment> {
-        let (_keys, account, _identifier) =
-            self.storage.user_data.get_private_account(account_id)?;
+        let account = self
+            .storage
+            .user_data
+            .get_private_account(account_id)
+            .map(|(_keys, account, _identifier)| account)
+            .or_else(|| {
+                self.storage
+                    .user_data
+                    .shared_private_account(&account_id)
+                    .map(|entry| entry.account.clone())
+            })?;
         Some(Commitment::new(&account_id, &account))
     }
 
