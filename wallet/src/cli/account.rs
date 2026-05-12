@@ -109,7 +109,7 @@ pub enum NewSubcommand {
         /// Program ID as hex string.
         program_id: Option<String>,
         #[arg(long, requires = "pda")]
-        /// Identifier that diversifies this PDA within the (program_id, seed, npk) family.
+        /// Identifier that diversifies this PDA within the (`program_id`, seed, npk) family.
         /// Defaults to a random value if not specified.
         identifier: Option<u128>,
     },
