@@ -409,6 +409,7 @@ impl WalletCore {
         group_name: &str,
         pda_seed: nssa_core::program::PdaSeed,
         program_id: nssa_core::program::ProgramId,
+        identifier: nssa_core::Identifier,
     ) -> Result<SharedAccountInfo> {
         let holder = self
             .storage
@@ -419,12 +420,12 @@ impl WalletCore {
         let keys = holder.derive_keys_for_pda(&program_id, &pda_seed);
         let npk = keys.generate_nullifier_public_key();
         let vpk = keys.generate_viewing_public_key();
-        let account_id = AccountId::for_private_pda(&program_id, &pda_seed, &npk, u128::MAX);
+        let account_id = AccountId::for_private_pda(&program_id, &pda_seed, &npk, identifier);
 
         self.register_shared_account(
             account_id,
             String::from(group_name),
-            u128::MAX,
+            identifier,
             Some(pda_seed),
             Some(program_id),
         );
@@ -793,7 +794,7 @@ impl WalletCore {
                 let shared_secret = SharedSecretKey::new(&vsk, &encrypted_data.epk);
                 let commitment = &tx.message.new_commitments[ciph_id];
 
-                if let Some((_decrypted_identifier, new_acc)) = nssa_core::EncryptionScheme::decrypt(
+                if let Some((_kind, new_acc)) = nssa_core::EncryptionScheme::decrypt(
                     &encrypted_data.ciphertext,
                     &shared_secret,
                     commitment,
