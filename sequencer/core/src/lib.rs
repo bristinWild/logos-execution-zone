@@ -28,6 +28,8 @@ pub mod config;
 #[cfg(feature = "mock")]
 pub mod mock;
 
+type AttributedEvents = Vec<([u32; 8], lez_events::EventRecord)>;
+
 pub struct SequencerCore<BP: BlockPublisherTrait = ZoneSdkPublisher> {
     state: nssa::V03State,
     store: SequencerStore,
@@ -36,6 +38,8 @@ pub struct SequencerCore<BP: BlockPublisherTrait = ZoneSdkPublisher> {
     sequencer_config: SequencerConfig,
     chain_height: u64,
     block_publisher: BP,
+    rejected_tx_store: crate::block_store::RejectedTxStore,
+    included_tx_store: crate::block_store::IncludedTxStore,
 }
 
 impl<BP: BlockPublisherTrait> SequencerCore<BP> {
@@ -162,6 +166,8 @@ impl<BP: BlockPublisherTrait> SequencerCore<BP> {
             chain_height: latest_block_meta.id,
             sequencer_config: config,
             block_publisher,
+            rejected_tx_store: crate::block_store::RejectedTxStore::default(),
+            included_tx_store: crate::block_store::IncludedTxStore::default(),
         };
 
         (sequencer_core, mempool_handle)
@@ -313,6 +319,14 @@ impl<BP: BlockPublisherTrait> SequencerCore<BP> {
 
     pub const fn block_store(&self) -> &SequencerStore {
         &self.store
+    }
+
+    pub const fn rejected_tx_store(&self) -> &crate::block_store::RejectedTxStore {
+        &self.rejected_tx_store
+    }
+
+    pub const fn included_tx_store(&self) -> &crate::block_store::IncludedTxStore {
+        &self.included_tx_store
     }
 
     pub const fn chain_height(&self) -> u64 {
