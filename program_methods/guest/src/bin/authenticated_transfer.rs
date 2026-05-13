@@ -1,6 +1,5 @@
 use authenticated_transfer_core::Instruction;
 use nssa_core::{
-    SYSTEM_FAUCET_ACCOUNT_ID,
     account::{Account, AccountWithMetadata},
     program::{
         AccountPostState, Claim, DEFAULT_PROGRAM_ID, ProgramInput, ProgramOutput, read_nssa_inputs,
@@ -26,13 +25,8 @@ fn transfer(
     recipient: AccountWithMetadata,
     balance_to_move: u128,
 ) -> Vec<AccountPostState> {
-    // Continue only if the sender has authorized this operation
-    // or it's the system faucet account which is allowed without authorization as it may be used
-    // only by sequencer.
-    assert!(
-        sender.is_authorized || sender.account_id == SYSTEM_FAUCET_ACCOUNT_ID,
-        "Sender must be authorized"
-    );
+    // Continue only if the sender has authorized this operation.
+    assert!(sender.is_authorized, "Sender must be authorized");
 
     // Create accounts post states, with updated balances
     let sender_post = {

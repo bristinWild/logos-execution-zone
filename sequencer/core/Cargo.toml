@@ -15,6 +15,7 @@ storage.workspace = true
 mempool.workspace = true
 logos-blockchain-zone-sdk.workspace = true
 testnet_initial_state.workspace = true
+faucet_core.workspace = true
 vault_core.workspace = true
 
 anyhow.workspace = true

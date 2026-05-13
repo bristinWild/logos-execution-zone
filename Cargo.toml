@@ -21,6 +21,7 @@ members = [
   "programs/associated_token_account/core",
   "programs/associated_token_account",
   "programs/authenticated_transfer/core",
+  "programs/faucet/core",
   "programs/vault/core",
   "sequencer/core",
   "sequencer/service",
@@ -68,6 +69,7 @@ amm_program = { path = "programs/amm" }
 ata_core = { path = "programs/associated_token_account/core" }
 ata_program = { path = "programs/associated_token_account" }
 authenticated_transfer_core = { path = "programs/authenticated_transfer/core" }
+faucet_core = { path = "programs/faucet/core" }
 vault_core = { path = "programs/vault/core" }
 test_program_methods = { path = "test_program_methods" }
 testnet_initial_state = { path = "testnet_initial_state" }

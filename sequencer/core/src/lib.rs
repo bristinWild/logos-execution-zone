@@ -380,14 +380,16 @@ fn build_supply_account_genesis_transaction(
     account_id: &AccountId,
     balance: u128,
 ) -> PublicTransaction {
+    let faucet_program_id = Program::faucet().id();
     let vault_program_id = Program::vault().id();
     let recipient_vault_id = vault_core::compute_vault_account_id(vault_program_id, *account_id);
 
     let message = Message::try_new(
-        vault_program_id,
-        vec![nssa::SYSTEM_FAUCET_ACCOUNT_ID, recipient_vault_id],
+        faucet_program_id,
+        vec![nssa::system_faucet_account_id(), recipient_vault_id],
         vec![],
-        vault_core::Instruction::Transfer {
+        faucet_core::Instruction::Transfer {
+            vault_program_id,
             recipient_id: *account_id,
             amount: balance,
         },

@@ -2667,6 +2667,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
+name = "faucet_core"
+version = "0.1.0"
+dependencies = [
+ "nssa_core",
+ "serde",
+]
+
+[[package]]
 name = "ferroid"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3938,6 +3946,7 @@ dependencies = [
  "bytesize",
  "common",
  "env_logger",
+ "faucet_core",
  "futures",
  "hex",
  "indexer_ffi",
@@ -6322,6 +6331,7 @@ dependencies = [
  "borsh",
  "clock_core",
  "env_logger",
+ "faucet_core",
  "hex",
  "hex-literal 1.1.0",
  "k256",
@@ -7057,6 +7067,7 @@ dependencies = [
  "ata_program",
  "authenticated_transfer_core",
  "clock_core",
+ "faucet_core",
  "nssa_core",
  "risc0-zkvm",
  "serde",
@@ -8421,6 +8432,7 @@ dependencies = [
  "bytesize",
  "chrono",
  "common",
+ "faucet_core",
  "futures",
  "humantime-serde",
  "log",

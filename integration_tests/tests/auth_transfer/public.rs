@@ -4,7 +4,7 @@ use anyhow::Result;
 use common::transaction::NSSATransaction;
 use integration_tests::{TIME_TO_WAIT_FOR_BLOCK_SECONDS, TestContext, public_mention};
 use log::info;
-use nssa::{SYSTEM_FAUCET_ACCOUNT_ID, program::Program, public_transaction};
+use nssa::{program::Program, public_transaction, system_faucet_account_id};
 use sequencer_service_rpc::RpcClient as _;
 use tokio::test;
 use wallet::{
@@ -349,6 +349,7 @@ async fn successful_transfer_using_to_label() -> Result<()> {
 #[test]
 async fn cannot_transfer_funds_from_system_faucet_account() -> Result<()> {
     let ctx = TestContext::new().await?;
+    let faucet_account_id = system_faucet_account_id();
 
     let recipient = ctx.existing_public_accounts()[0];
     let recipient_balance_before = ctx
@@ -357,13 +358,13 @@ async fn cannot_transfer_funds_from_system_faucet_account() -> Result<()> {
         .await?;
     let faucet_balance_before = ctx
         .sequencer_client()
-        .get_account_balance(SYSTEM_FAUCET_ACCOUNT_ID)
+        .get_account_balance(faucet_account_id)
         .await?;
 
     let amount = 1_u128;
     let message = public_transaction::Message::try_new(
         Program::authenticated_transfer_program().id(),
-        vec![SYSTEM_FAUCET_ACCOUNT_ID, recipient],
+        vec![faucet_account_id, recipient],
         vec![],
         authenticated_transfer_core::Instruction::Transfer { amount },
     )?;
@@ -385,7 +386,7 @@ async fn cannot_transfer_funds_from_system_faucet_account() -> Result<()> {
         .await?;
     let faucet_balance_after = ctx
         .sequencer_client()
-        .get_account_balance(SYSTEM_FAUCET_ACCOUNT_ID)
+        .get_account_balance(faucet_account_id)
         .await?;
     let tx_on_chain = ctx.sequencer_client().get_transaction(tx_hash).await?;
 
@@ -399,18 +400,19 @@ async fn cannot_transfer_funds_from_system_faucet_account() -> Result<()> {
 #[test]
 async fn can_transfer_funds_to_system_faucet_account() -> Result<()> {
     let mut ctx = TestContext::new().await?;
+    let faucet_account_id = system_faucet_account_id();
 
     let sender = ctx.existing_public_accounts()[0];
     let sender_balance_before = ctx.sequencer_client().get_account_balance(sender).await?;
     let faucet_balance_before = ctx
         .sequencer_client()
-        .get_account_balance(SYSTEM_FAUCET_ACCOUNT_ID)
+        .get_account_balance(faucet_account_id)
         .await?;
 
     let amount = 100_u128;
     let command = Command::AuthTransfer(AuthTransferSubcommand::Send {
         from: public_mention(sender),
-        to: Some(public_mention(SYSTEM_FAUCET_ACCOUNT_ID)),
+        to: Some(public_mention(faucet_account_id)),
         to_npk: None,
         to_vpk: None,
         to_identifier: Some(0),
@@ -424,11 +426,69 @@ async fn can_transfer_funds_to_system_faucet_account() -> Result<()> {
     let sender_balance_after = ctx.sequencer_client().get_account_balance(sender).await?;
     let faucet_balance_after = ctx
         .sequencer_client()
-        .get_account_balance(SYSTEM_FAUCET_ACCOUNT_ID)
+        .get_account_balance(faucet_account_id)
         .await?;
 
     assert_eq!(sender_balance_after, sender_balance_before - amount);
     assert_eq!(faucet_balance_after, faucet_balance_before + amount);
+
+    Ok(())
+}
+
+#[test]
+async fn cannot_execute_faucet_program() -> Result<()> {
+    let ctx = TestContext::new().await?;
+    let faucet_account_id = system_faucet_account_id();
+
+    let recipient = ctx.existing_public_accounts()[0];
+    let vault_program_id = Program::vault().id();
+    let recipient_vault_id = vault_core::compute_vault_account_id(vault_program_id, recipient);
+
+    let recipient_balance_before = ctx
+        .sequencer_client()
+        .get_account_balance(recipient)
+        .await?;
+    let faucet_balance_before = ctx
+        .sequencer_client()
+        .get_account_balance(faucet_account_id)
+        .await?;
+
+    let amount = 1_u128;
+    let message = public_transaction::Message::try_new(
+        Program::faucet().id(),
+        vec![faucet_account_id, recipient_vault_id],
+        vec![],
+        faucet_core::Instruction::Transfer {
+            vault_program_id,
+            recipient_id: recipient,
+            amount,
+        },
+    )?;
+    let tx = nssa::PublicTransaction::new(
+        message,
+        nssa::public_transaction::WitnessSet::from_raw_parts(vec![]),
+    );
+    let tx_hash = ctx
+        .sequencer_client()
+        .send_transaction(NSSATransaction::Public(tx))
+        .await?;
+
+    info!("Waiting for next block creation");
+    tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    let recipient_balance_after = ctx
+        .sequencer_client()
+        .get_account_balance(recipient)
+        .await?;
+    let faucet_balance_after = ctx
+        .sequencer_client()
+        .get_account_balance(faucet_account_id)
+        .await?;
+    let tx_on_chain = ctx.sequencer_client().get_transaction(tx_hash).await?;
+
+    assert_eq!(recipient_balance_after, recipient_balance_before);
+    assert_eq!(faucet_balance_after, faucet_balance_before);
+    assert!(tx_on_chain.is_none());
 
     Ok(())
 }

@@ -21,6 +21,7 @@ serde_json.workspace = true
 token_core.workspace = true
 ata_core.workspace = true
 vault_core.workspace = true
+faucet_core.workspace = true
 indexer_service_rpc = { workspace = true, features = ["client"] }
 sequencer_service_rpc = { workspace = true, features = ["client"] }
 jsonrpsee = { workspace = true, features = ["ws-client"] }

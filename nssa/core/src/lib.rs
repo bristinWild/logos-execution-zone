@@ -26,8 +26,6 @@ pub mod program;
 pub mod error;
 
 pub const GENESIS_BLOCK_ID: BlockId = 1;
-pub const SYSTEM_FAUCET_ACCOUNT_ID: account::AccountId =
-    account::AccountId::new(*b"/LEZ/SystemFaucetAccount/0000000");
 
 pub type BlockId = u64;
 /// Unix timestamp in milliseconds.

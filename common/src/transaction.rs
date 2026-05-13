@@ -68,7 +68,8 @@ impl NSSATransaction {
 
     /// Validates the transaction against the current state and returns the resulting diff
     /// without applying it. Rejects transactions that modify clock system accounts and
-    /// rejects unsafe modifications of the system faucet account.
+    /// rejects unsafe modifications of the system faucet account. Also rejects direct
+    /// invocation of the faucet program for user-submitted transactions.
     ///
     /// This check is required for all user transactions. Only sequencer transaction may bypass this
     /// check.
@@ -78,6 +79,14 @@ impl NSSATransaction {
         block_id: BlockId,
         timestamp: Timestamp,
     ) -> Result<ValidatedStateDiff, nssa::error::NssaError> {
+        if let Self::Public(tx) = self
+            && tx.message().program_id == nssa::program::Program::faucet().id()
+        {
+            return Err(nssa::error::NssaError::InvalidInput(
+                "Transaction invokes restricted faucet program".into(),
+            ));
+        }
+
         let diff = match self {
             Self::Public(tx) => {
                 ValidatedStateDiff::from_public_transaction(tx, state, block_id, timestamp)
@@ -100,36 +109,6 @@ impl NSSATransaction {
             return Err(nssa::error::NssaError::InvalidInput(
                 "Transaction modifies system clock accounts".into(),
             ));
-        }
-
-        let faucet_account_id = nssa::SYSTEM_FAUCET_ACCOUNT_ID;
-        if let Some(post_faucet) = public_diff.get(&faucet_account_id) {
-            let pre_faucet = state.get_account_by_id(faucet_account_id);
-
-            let nssa::Account {
-                program_owner: post_program_owner,
-                data: post_data,
-                nonce: post_nonce,
-                balance: post_balance,
-            } = post_faucet;
-
-            let nssa::Account {
-                program_owner: pre_program_owner,
-                data: pre_data,
-                nonce: pre_nonce,
-                balance: pre_balance,
-            } = pre_faucet;
-
-            let faucet_change_is_allowed = *post_program_owner == pre_program_owner
-                && *post_data == pre_data
-                && *post_nonce == pre_nonce
-                && *post_balance >= pre_balance;
-
-            if !faucet_change_is_allowed {
-                return Err(nssa::error::NssaError::InvalidInput(
-                    "Transaction modifies system faucet account".into(),
-                ));
-            }
         }
 
         Ok(diff)
