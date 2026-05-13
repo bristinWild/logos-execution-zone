@@ -381,24 +381,18 @@ async fn private_shared_acc_preparation(
         .map(|e| e.account.clone())
         .unwrap_or_default();
 
-    let exists = acc != nssa_core::account::Account::default();
-    let pre_state = AccountWithMetadata::new(acc, exists, account_id);
+    let pre_state = AccountWithMetadata::new(acc, true, account_id);
 
-    let proof = if exists {
-        wallet
-            .check_private_account_initialized(account_id)
-            .await
-            .unwrap_or(None)
-    } else {
-        None
-    };
+    let proof = wallet
+        .check_private_account_initialized(account_id)
+        .await
+        .unwrap_or(None);
 
     let eph_holder = EphemeralKeyHolder::new(&npk);
     let ssk = eph_holder.calculate_shared_secret_sender(&vpk);
     let epk = eph_holder.generate_ephemeral_public_key();
-
     Ok(AccountPreparedData {
-        nsk: exists.then_some(nsk),
+        nsk: Some(nsk),
         npk,
         identifier,
         vpk,

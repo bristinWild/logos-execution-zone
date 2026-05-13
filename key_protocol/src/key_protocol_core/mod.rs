@@ -178,6 +178,7 @@ impl NSSAUserData {
     }
 
     /// Returns the key chain and account data for the given private account ID.
+    /// Does not cover shared private accounts — use `shared_private_account` for those.
     #[must_use]
     pub fn get_private_account(
         &self,
