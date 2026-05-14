@@ -1,8 +1,6 @@
 # cycle_bench
 
-Per-program Risc0 cycle counts, prover wall time, PPE composition cost,
-and verifier wall time for the built-in LEZ programs. Inputs for the
-fee model's `G_executor`, `G_prove`, `G_verify`, and `S_agg` parameters.
+Per-program Risc0 cycle counts, prover wall time, PPE composition cost, and verifier wall time for the built-in LEZ programs. Inputs for the fee model's `G_executor`, `G_prove`, `G_verify`, and `S_agg` parameters.
 
 ## Machine
 
@@ -18,8 +16,7 @@ fee model's `G_executor`, `G_prove`, `G_verify`, and `S_agg` parameters.
 
 ## Executor cycles
 
-`SessionInfo::cycles()` per instruction. Deterministic across runs. Wall time
-is `best / mean ± stdev` over 5 timed iterations (1 warmup discarded).
+`SessionInfo::cycles()` per instruction. Deterministic across runs. Wall time is `best / mean ± stdev` over 5 timed iterations (1 warmup discarded).
 
 | Program | Instruction | user_cycles | segments | exec_ms (best / mean ± stdev) |
 |---|---|---:|---:|---|
@@ -35,8 +32,7 @@ is `best / mean ± stdev` over 5 timed iterations (1 warmup discarded).
 
 ## Real proving (`--prove`)
 
-`prover.prove(env, elf)` wall time per program on CPU. `total_cycles` is
-`user_cycles` rounded up to the next power of two (Risc0 padding).
+`prover.prove(env, elf)` wall time per program on CPU. `total_cycles` is `user_cycles` rounded up to the next power of two (Risc0 padding).
 
 | Program | Instruction | total_cycles | prove_ms | prove_s |
 |---|---|---:|---:|---:|
@@ -50,15 +46,11 @@ is `best / mean ± stdev` over 5 timed iterations (1 warmup discarded).
 | amm | AddLiquidity | 1,048,576 | 111,654 | 111.7 |
 | amm | SwapExactInput | 1,048,576 | 126,400 | 126.4 |
 
-Linear fit across po2 buckets: ≈ 100 µs per total cycle (≈ 10k cycles/s
-throughput on this CPU).
+Linear fit across po2 buckets: ≈ 100 µs per total cycle (≈ 10k cycles/s throughput on this CPU).
 
 ## PPE composition + chain-call sweep (`--ppe`)
 
-Same `auth_transfer Transfer` instruction, standalone vs wrapped in the
-privacy circuit; plus the `chain_caller` test program with N chained
-`authenticated_transfer` calls. `proof_bytes` is the borsh-serialized
-InnerReceipt (S_agg in the fee model).
+Same `auth_transfer Transfer` instruction, standalone vs wrapped in the privacy circuit; plus the `chain_caller` test program with N chained `authenticated_transfer` calls. `proof_bytes` is the borsh-serialized. InnerReceipt (S_agg in the fee model).
 
 | Case | prove_ms | prove_s | proof_bytes |
 |---|---:|---:|---:|
@@ -69,15 +61,11 @@ InnerReceipt (S_agg in the fee model).
 | chain_caller depth=5 | 372,123 | 372.1 | 223,551 |
 | chain_caller depth=9 | 544,280 | 544.3 | 223,551 |
 
-Linear fit depth=1..9: ≈ 53 s per additional chained call, intercept ≈ 73 s.
-Composition tax (single program PPE − standalone): ≈ 48 s. `proof_bytes` is
-constant: the outer succinct proof has fixed size; the journal carried
-alongside it scales with public state and is reported separately by `--verify`.
+Linear fit depth=1..9: ≈ 53 s per additional chained call, intercept ≈ 73 s. Composition tax (single program PPE − standalone): ≈ 48 s. `proof_bytes` is constant: the outer succinct proof has fixed size; the journal carried alongside it scales with public state and is reported separately by `--verify`.
 
 ## Verifier (`--verify`)
 
-One PPE receipt generated once (auth_transfer Transfer in PPE), then
-`Receipt::verify(PRIVACY_PRESERVING_CIRCUIT_ID)` measured over 1000 iterations.
+One PPE receipt generated once (auth_transfer Transfer in PPE), then `Receipt::verify(PRIVACY_PRESERVING_CIRCUIT_ID)` measured over 1000 iterations.
 
 | Field | Value |
 |---|---|
@@ -88,14 +76,10 @@ One PPE receipt generated once (auth_transfer Transfer in PPE), then
 
 ## Findings
 
-- Proving cost scales with po2-bucketed `total_cycles`, not raw `user_cycles`.
-  Trimming user_cycles only helps if it crosses a 2^N boundary.
+- Proving cost scales with po2-bucketed `total_cycles`, not raw `user_cycles`. Trimming user_cycles only helps if it crosses a 2^N boundary.
 - Single-program PPE composition tax on M2 Pro CPU: ≈ 48 s (61.5 − 13.7).
-- Chained-call cost is linear at ≈ 53 s per call. A max-depth chain (10) would
-  take ≈ 600 s standalone on this CPU.
-- `G_verify` is ≈ 12 ms and roughly constant per outer receipt (1000-iter
-  stdev ≈ 2 ms). The succinct outer proof is fixed at 223,551 bytes (S_agg);
-  verify is not on the latency critical path.
+- Chained-call cost is linear at ≈ 53 s per call. A max-depth chain (10) would take ≈ 600 s standalone on this CPU.
+- `G_verify` is ≈ 12 ms and roughly constant per outer receipt (1000-iter stdev ≈ 2 ms). The succinct outer proof is fixed at 223,551 bytes (S_agg); verify is not on the latency critical path.
 
 ## Reproduce
 
@@ -110,8 +94,5 @@ JSON output: `target/cycle_bench.json`.
 
 ## Caveats
 
-- CPU-only proving on a dev laptop. Production prover hardware (GPU,
-  specialised CPU pipelines) will produce much smaller numbers; relative
-  ordering should be preserved.
-- Single-segment cases only; multi-segment programs would pay continuation
-  overhead not measured here.
+- CPU-only proving on a dev laptop. Production prover hardware (GPU, specialised CPU pipelines) will produce much smaller numbers; relative ordering should be preserved.
+- Single-segment cases only; multi-segment programs would pay continuation overhead not measured here.
