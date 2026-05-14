@@ -109,17 +109,15 @@ async fn private_pda_family_members_receive_and_spend() -> Result<()> {
     let mut ctx = TestContext::new().await?;
 
     // ── Build alice's key chain ──────────────────────────────────────────────────────────────────
-    let alice_chain_index = ctx.wallet_mut().create_private_accounts_key(None);
+    let (alice_id, _alice_chain_index) = ctx.wallet_mut().create_new_account_private(None);
     let (alice_npk, alice_vpk) = {
-        let node = ctx
+        let account = ctx
             .wallet()
             .storage()
-            .user_data
-            .private_key_tree
-            .key_map
-            .get(&alice_chain_index)
-            .context("key node was just inserted")?;
-        let kc = &node.value.0;
+            .key_chain()
+            .private_account(alice_id)
+            .expect("Account was just created, should be present");
+        let kc = account.key_chain;
         (kc.nullifier_public_key, kc.viewing_public_key.clone())
     };
 

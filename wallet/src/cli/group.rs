@@ -4,6 +4,7 @@ use key_protocol::key_management::group_key_holder::{GroupKeyHolder, SealingPubl
 
 use crate::{
     WalletCore,
+    account::Label,
     cli::{SubcommandReturnValue, WalletSubcommand},
 };
 
@@ -13,7 +14,7 @@ pub enum GroupSubcommand {
     /// Create a new group with a fresh random GMS.
     New {
         /// Human-readable name for the group.
-        name: String,
+        name: Label,
     },
     /// List all groups.
     #[command(visible_alias = "ls")]
@@ -21,12 +22,12 @@ pub enum GroupSubcommand {
     /// Remove a group from the wallet.
     Remove {
         /// Group name.
-        name: String,
+        name: Label,
     },
     /// Seal the group's GMS for a recipient (invite).
     Invite {
         /// Group name.
-        name: String,
+        name: Label,
         /// Recipient's sealing public key as hex string.
         #[arg(long)]
         key: String,
@@ -35,7 +36,7 @@ pub enum GroupSubcommand {
     /// Uses the wallet's dedicated sealing key (generated via `new-sealing-key`).
     Join {
         /// Human-readable name to store the group under.
-        name: String,
+        name: Label,
         /// Sealed GMS as hex string (from the inviter).
         #[arg(long)]
         sealed: String,
@@ -54,7 +55,7 @@ impl WalletSubcommand for GroupSubcommand {
             Self::New { name } => {
                 if wallet_core
                     .storage()
-                    .user_data
+                    .key_chain()
                     .group_key_holder(&name)
                     .is_some()
                 {
@@ -63,20 +64,21 @@ impl WalletSubcommand for GroupSubcommand {
 
                 let holder = GroupKeyHolder::new();
                 wallet_core.insert_group_key_holder(name.clone(), holder);
-                wallet_core.store_persistent_data().await?;
+                wallet_core.store_persistent_data()?;
 
                 println!("Created group '{name}'");
                 Ok(SubcommandReturnValue::Empty)
             }
 
             Self::List => {
-                let holders = &wallet_core.storage().user_data.group_key_holders;
-                if holders.is_empty() {
+                let mut empty = true;
+                let holders_iter = wallet_core.storage().key_chain().group_key_holders_iter();
+                for (name, _) in holders_iter {
+                    empty = false;
+                    println!("{name}");
+                }
+                if empty {
                     println!("No groups found");
-                } else {
-                    for name in holders.keys() {
-                        println!("{name}");
-                    }
                 }
                 Ok(SubcommandReturnValue::Empty)
             }
@@ -86,7 +88,7 @@ impl WalletSubcommand for GroupSubcommand {
                     anyhow::bail!("Group '{name}' not found");
                 }
 
-                wallet_core.store_persistent_data().await?;
+                wallet_core.store_persistent_data()?;
                 println!("Removed group '{name}'");
                 Ok(SubcommandReturnValue::Empty)
             }
@@ -94,7 +96,7 @@ impl WalletSubcommand for GroupSubcommand {
             Self::Invite { name, key } => {
                 let holder = wallet_core
                     .storage()
-                    .user_data
+                    .key_chain()
                     .group_key_holder(&name)
                     .context(format!("Group '{name}' not found"))?;
 
@@ -112,32 +114,38 @@ impl WalletSubcommand for GroupSubcommand {
             Self::Join { name, sealed } => {
                 if wallet_core
                     .storage()
-                    .user_data
+                    .key_chain()
                     .group_key_holder(&name)
                     .is_some()
                 {
                     anyhow::bail!("Group '{name}' already exists");
                 }
 
-                let sealing_key =
-                    wallet_core.storage().user_data.sealing_secret_key.context(
-                        "No sealing key found. Run 'wallet group new-sealing-key' first.",
-                    )?;
+                let sealing_key = wallet_core
+                    .storage()
+                    .key_chain()
+                    .sealing_secret_key()
+                    .context("No sealing key found. Run 'wallet group new-sealing-key' first.")?;
 
                 let sealed_bytes = hex::decode(&sealed).context("Invalid sealed hex")?;
 
-                let holder = GroupKeyHolder::unseal(&sealed_bytes, &sealing_key)
+                let holder = GroupKeyHolder::unseal(&sealed_bytes, sealing_key)
                     .map_err(|e| anyhow::anyhow!("Failed to unseal: {e:?}"))?;
 
                 wallet_core.insert_group_key_holder(name.clone(), holder);
-                wallet_core.store_persistent_data().await?;
+                wallet_core.store_persistent_data()?;
 
                 println!("Joined group '{name}'");
                 Ok(SubcommandReturnValue::Empty)
             }
 
             Self::NewSealingKey => {
-                if wallet_core.storage().user_data.sealing_secret_key.is_some() {
+                if wallet_core
+                    .storage()
+                    .key_chain()
+                    .sealing_secret_key()
+                    .is_some()
+                {
                     anyhow::bail!("Sealing key already exists. Each wallet has one sealing key.");
                 }
 
@@ -146,7 +154,7 @@ impl WalletSubcommand for GroupSubcommand {
                 let public_key = SealingPublicKey::from_scalar(secret);
 
                 wallet_core.set_sealing_secret_key(secret);
-                wallet_core.store_persistent_data().await?;
+                wallet_core.store_persistent_data()?;
 
                 println!("Sealing key generated.");
                 println!("Public key: {}", hex::encode(public_key.to_bytes()));

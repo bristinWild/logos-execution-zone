@@ -913,6 +913,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "authenticated_transfer_core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1622,6 +1629,7 @@ name = "common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "authenticated_transfer_core",
  "base64 0.22.1",
  "borsh",
  "clock_core",
@@ -1761,6 +1769,15 @@ name = "convert_case"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baaaa0ecca5b51987b9423ccdc971514dd8b0bb7b4060b983d3664dad3f1f89f"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "convert_case"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "633458d4ef8c78b72454de2d54fd6ab2e60f9e02be22f3c6104cdc8a4e0fceb9"
 dependencies = [
  "unicode-segmentation",
 ]
@@ -2181,6 +2198,7 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "799a97264921d8623a957f6c3b9011f3b5492f557bbb7a5a19b7fa6d06ba8dcb"
 dependencies = [
+ "convert_case 0.10.0",
  "proc-macro2",
  "quote",
  "rustc_version",
@@ -2647,6 +2665,14 @@ name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
+
+[[package]]
+name = "faucet_core"
+version = "0.1.0"
+dependencies = [
+ "nssa_core",
+ "serde",
+]
 
 [[package]]
 name = "ferroid"
@@ -3775,6 +3801,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-stream",
+ "authenticated_transfer_core",
  "borsh",
  "common",
  "futures",
@@ -3915,9 +3942,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ata_core",
+ "authenticated_transfer_core",
  "bytesize",
  "common",
  "env_logger",
+ "faucet_core",
  "futures",
  "hex",
  "indexer_ffi",
@@ -3935,10 +3964,10 @@ dependencies = [
  "serde_json",
  "tempfile",
  "testcontainers",
- "testnet_initial_state",
  "token_core",
  "tokio",
  "url",
+ "vault_core",
  "wallet",
  "wallet-ffi",
 ]
@@ -6298,9 +6327,11 @@ name = "nssa"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "authenticated_transfer_core",
  "borsh",
  "clock_core",
  "env_logger",
+ "faucet_core",
  "hex",
  "hex-literal 1.1.0",
  "k256",
@@ -7034,12 +7065,15 @@ dependencies = [
  "amm_program",
  "ata_core",
  "ata_program",
+ "authenticated_transfer_core",
  "clock_core",
+ "faucet_core",
  "nssa_core",
  "risc0-zkvm",
  "serde",
  "token_core",
  "token_program",
+ "vault_core",
 ]
 
 [[package]]
@@ -8398,6 +8432,7 @@ dependencies = [
  "bytesize",
  "chrono",
  "common",
+ "faucet_core",
  "futures",
  "humantime-serde",
  "log",
@@ -8416,6 +8451,7 @@ dependencies = [
  "testnet_initial_state",
  "tokio",
  "url",
+ "vault_core",
 ]
 
 [[package]]
@@ -9143,6 +9179,7 @@ dependencies = [
 name = "test_programs"
 version = "0.1.0"
 dependencies = [
+ "authenticated_transfer_core",
  "clock_core",
  "nssa_core",
  "risc0-zkvm",
@@ -10053,6 +10090,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
+name = "vault_core"
+version = "0.1.0"
+dependencies = [
+ "nssa_core",
+ "risc0-zkvm",
+ "serde",
+]
+
+[[package]]
 name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10082,10 +10128,13 @@ dependencies = [
  "anyhow",
  "async-stream",
  "ata_core",
+ "authenticated_transfer_core",
  "base58",
+ "bincode",
  "bip39",
  "clap",
  "common",
+ "derive_more",
  "env_logger",
  "futures",
  "hex",
@@ -10103,6 +10152,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "testnet_initial_state",
  "thiserror 2.0.18",
  "token_core",
@@ -10115,9 +10165,11 @@ name = "wallet-ffi"
 version = "0.1.0"
 dependencies = [
  "cbindgen",
+ "key_protocol",
  "nssa",
  "nssa_core",
  "sequencer_service_rpc",
+ "serde_json",
  "tempfile",
  "tokio",
  "wallet",

@@ -328,15 +328,15 @@ async fn private_key_tree_acc_preparation(
     account_id: AccountId,
     is_pda: bool,
 ) -> Result<AccountPreparedData, ExecutionFailureKind> {
-    let (from_keys, from_acc, from_identifier) = wallet
-        .storage
-        .user_data
-        .get_private_account(account_id)
-        .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
+    let Some(from_acc) = wallet.storage.key_chain().private_account(account_id) else {
+        return Err(ExecutionFailureKind::KeyNotFoundError);
+    };
 
+    let from_identifier = from_acc.kind.identifier();
+    let from_keys = &from_acc.key_chain;
     let nsk = from_keys.private_key_holder.nullifier_secret_key;
     let from_npk = from_keys.nullifier_public_key;
-    let from_vpk = from_keys.viewing_public_key;
+    let from_vpk = from_keys.viewing_public_key.clone();
 
     // TODO: Remove this unwrap, error types must be compatible
     let proof = wallet
@@ -346,7 +346,7 @@ async fn private_key_tree_acc_preparation(
 
     // TODO: Technically we could allow unauthorized owned accounts, but currently we don't have
     // support from that in the wallet.
-    let sender_pre = AccountWithMetadata::new(from_acc.clone(), true, account_id);
+    let sender_pre = AccountWithMetadata::new(from_acc.account.clone(), true, account_id);
 
     let eph_holder = EphemeralKeyHolder::new(&from_npk);
     let ssk = eph_holder.calculate_shared_secret_sender(&from_vpk);
@@ -375,9 +375,9 @@ async fn private_shared_acc_preparation(
     is_pda: bool,
 ) -> Result<AccountPreparedData, ExecutionFailureKind> {
     let acc = wallet
-        .storage
-        .user_data
-        .shared_private_account(&account_id)
+        .storage()
+        .key_chain()
+        .shared_private_account(account_id)
         .map(|e| e.account.clone())
         .unwrap_or_default();
 

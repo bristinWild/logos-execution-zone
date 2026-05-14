@@ -56,9 +56,12 @@ fn main() {
         // private PDA (seed, npk) binding when pda_seeds match the private PDA derivation.
         let mut auth_pda_pre = pda_pre;
         auth_pda_pre.is_authorized = true;
-        let auth_call =
-            ChainedCall::new(auth_transfer_id, vec![auth_pda_pre, recipient_pre], &amount)
-                .with_pda_seeds(vec![pda_seed]);
+        let auth_call = ChainedCall::new(
+            auth_transfer_id,
+            vec![auth_pda_pre, recipient_pre],
+            &authenticated_transfer_core::Instruction::Transfer { amount },
+        )
+        .with_pda_seeds(vec![pda_seed]);
 
         ProgramOutput::new(
             self_program_id,
@@ -81,8 +84,12 @@ fn main() {
         // to authorize the PDA. authenticated_transfer will claim it with Claim::Authorized.
         let mut auth_pda_pre = pda_pre;
         auth_pda_pre.is_authorized = true;
-        let auth_call = ChainedCall::new(auth_transfer_id, vec![auth_pda_pre], &0_u128)
-            .with_pda_seeds(vec![pda_seed]);
+        let auth_call = ChainedCall::new(
+            auth_transfer_id,
+            vec![auth_pda_pre],
+            &authenticated_transfer_core::Instruction::Initialize,
+        )
+        .with_pda_seeds(vec![pda_seed]);
 
         ProgramOutput::new(
             self_program_id,

@@ -12,7 +12,7 @@ impl NativeTokenTransfer<'_> {
         &self,
         from: AccountId,
     ) -> Result<(HashType, SharedSecretKey), ExecutionFailureKind> {
-        let instruction: u128 = 0;
+        let instruction = authenticated_transfer_core::Instruction::Initialize;
 
         let account = self
             .0
