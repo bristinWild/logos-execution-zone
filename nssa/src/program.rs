@@ -313,12 +313,12 @@ mod tests {
         }
 
         #[must_use]
-        pub fn private_pda_spender() -> Self {
-            use test_program_methods::{PRIVATE_PDA_SPENDER_ELF, PRIVATE_PDA_SPENDER_ID};
+        pub fn auth_transfer_proxy() -> Self {
+            use test_program_methods::{AUTH_TRANSFER_PROXY_ELF, AUTH_TRANSFER_PROXY_ID};
 
             Self {
-                id: PRIVATE_PDA_SPENDER_ID,
-                elf: PRIVATE_PDA_SPENDER_ELF.to_vec(),
+                id: AUTH_TRANSFER_PROXY_ID,
+                elf: AUTH_TRANSFER_PROXY_ELF.to_vec(),
             }
         }
 
@@ -329,6 +329,16 @@ mod tests {
             Self {
                 id: TWO_PDA_CLAIMER_ID,
                 elf: TWO_PDA_CLAIMER_ELF.to_vec(),
+            }
+        }
+
+        #[must_use]
+        pub fn pda_fund_spend_proxy() -> Self {
+            use test_program_methods::{PDA_FUND_SPEND_PROXY_ELF, PDA_FUND_SPEND_PROXY_ID};
+
+            Self {
+                id: PDA_FUND_SPEND_PROXY_ID,
+                elf: PDA_FUND_SPEND_PROXY_ELF.to_vec(),
             }
         }
 

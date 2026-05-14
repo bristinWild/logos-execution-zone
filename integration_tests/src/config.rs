@@ -59,12 +59,16 @@ impl InitialData {
         }
 
         let mut private_charlie_key_chain = KeyChain::new_os_random();
-        let mut private_charlie_account_id =
-            AccountId::from((&private_charlie_key_chain.nullifier_public_key, 0));
+        let mut private_charlie_account_id = AccountId::for_regular_private_account(
+            &private_charlie_key_chain.nullifier_public_key,
+            0,
+        );
 
         let mut private_david_key_chain = KeyChain::new_os_random();
-        let mut private_david_account_id =
-            AccountId::from((&private_david_key_chain.nullifier_public_key, 0));
+        let mut private_david_account_id = AccountId::for_regular_private_account(
+            &private_david_key_chain.nullifier_public_key,
+            0,
+        );
 
         // Ensure consistent ordering
         if private_charlie_account_id > private_david_account_id {

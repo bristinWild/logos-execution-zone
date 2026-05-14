@@ -1,24 +1,18 @@
 use nssa_core::{
-    Commitment, CommitmentSetDigest, DUMMY_COMMITMENT_HASH, EncryptionScheme, Identifier,
-    InputAccountIdentity, MembershipProof, Nullifier, NullifierPublicKey, NullifierSecretKey,
-    PrivacyPreservingCircuitOutput, SharedSecretKey,
+    Commitment, CommitmentSetDigest, DUMMY_COMMITMENT_HASH, EncryptionScheme, InputAccountIdentity,
+    MembershipProof, Nullifier, NullifierPublicKey, NullifierSecretKey,
+    PrivacyPreservingCircuitOutput, PrivateAccountKind, SharedSecretKey,
     account::{Account, AccountId, Nonce},
     compute_digest_for_path,
 };
 
 use crate::execution_state::ExecutionState;
 
-// SECURITY: the non-PDA private variants below assert that the prover-supplied `identifier` is
-// not equal to this constant; the PDA variants pass it as the fixed identifier. This keeps the
-// `(npk, identifier)` account-id space disjoint from private-PDA accounts. Single source of
-// truth, do not redefine in another module.
-const PRIVATE_PDA_FIXED_IDENTIFIER: Identifier = u128::MAX;
-
 pub fn compute_circuit_output(
     execution_state: ExecutionState,
     account_identities: &[InputAccountIdentity],
 ) -> PrivacyPreservingCircuitOutput {
-    let (block_validity_window, timestamp_validity_window, states_iter) =
+    let (block_validity_window, timestamp_validity_window, pda_seed_by_position, states_iter) =
         execution_state.into_parts();
     let mut output = PrivacyPreservingCircuitOutput {
         public_pre_states: Vec::new(),
@@ -37,7 +31,9 @@ pub fn compute_circuit_output(
     );
 
     let mut output_index = 0;
-    for (account_identity, (pre_state, post_state)) in account_identities.iter().zip(states_iter) {
+    for (pos, (account_identity, (pre_state, post_state))) in
+        account_identities.iter().zip(states_iter).enumerate()
+    {
         match account_identity {
             InputAccountIdentity::Public => {
                 output.public_pre_states.push(pre_state);
@@ -48,12 +44,8 @@ pub fn compute_circuit_output(
                 nsk,
                 identifier,
             } => {
-                assert_ne!(
-                    *identifier, PRIVATE_PDA_FIXED_IDENTIFIER,
-                    "Identifier must be different from {PRIVATE_PDA_FIXED_IDENTIFIER}. This is reserved for private PDA."
-                );
                 let npk = NullifierPublicKey::from(nsk);
-                let account_id = AccountId::from((&npk, *identifier));
+                let account_id = AccountId::for_regular_private_account(&npk, *identifier);
 
                 assert_eq!(account_id, pre_state.account_id, "AccountId mismatch");
                 assert!(
@@ -77,7 +69,7 @@ pub fn compute_circuit_output(
                     &mut output_index,
                     post_state,
                     &account_id,
-                    *identifier,
+                    &PrivateAccountKind::Regular(*identifier),
                     ssk,
                     new_nullifier,
                     new_nonce,
@@ -89,12 +81,8 @@ pub fn compute_circuit_output(
                 membership_proof,
                 identifier,
             } => {
-                assert_ne!(
-                    *identifier, PRIVATE_PDA_FIXED_IDENTIFIER,
-                    "Identifier must be different from {PRIVATE_PDA_FIXED_IDENTIFIER}. This is reserved for private PDA."
-                );
                 let npk = NullifierPublicKey::from(nsk);
-                let account_id = AccountId::from((&npk, *identifier));
+                let account_id = AccountId::for_regular_private_account(&npk, *identifier);
 
                 assert_eq!(account_id, pre_state.account_id, "AccountId mismatch");
                 assert!(
@@ -115,7 +103,7 @@ pub fn compute_circuit_output(
                     &mut output_index,
                     post_state,
                     &account_id,
-                    *identifier,
+                    &PrivateAccountKind::Regular(*identifier),
                     ssk,
                     new_nullifier,
                     new_nonce,
@@ -126,11 +114,7 @@ pub fn compute_circuit_output(
                 ssk,
                 identifier,
             } => {
-                assert_ne!(
-                    *identifier, PRIVATE_PDA_FIXED_IDENTIFIER,
-                    "Identifier must be different from {PRIVATE_PDA_FIXED_IDENTIFIER}. This is reserved for private PDA."
-                );
-                let account_id = AccountId::from((npk, *identifier));
+                let account_id = AccountId::for_regular_private_account(npk, *identifier);
 
                 assert_eq!(account_id, pre_state.account_id, "AccountId mismatch");
                 assert_eq!(
@@ -154,13 +138,17 @@ pub fn compute_circuit_output(
                     &mut output_index,
                     post_state,
                     &account_id,
-                    *identifier,
+                    &PrivateAccountKind::Regular(*identifier),
                     ssk,
                     new_nullifier,
                     new_nonce,
                 );
             }
-            InputAccountIdentity::PrivatePdaInit { npk: _, ssk } => {
+            InputAccountIdentity::PrivatePdaInit {
+                npk: _,
+                ssk,
+                identifier,
+            } => {
                 // The npk-to-account_id binding is established upstream in
                 // `validate_and_sync_states` via `Claim::Pda(seed)` or a caller `pda_seeds`
                 // match. Here we only enforce the init pre-conditions. The supplied npk on
@@ -184,12 +172,19 @@ pub fn compute_circuit_output(
                 let new_nonce = Nonce::private_account_nonce_init(&pre_state.account_id);
 
                 let account_id = pre_state.account_id;
+                let (pda_program_id, seed) = pda_seed_by_position
+                    .get(&pos)
+                    .expect("PrivatePdaInit position must be in pda_seed_by_position");
                 emit_private_output(
                     &mut output,
                     &mut output_index,
                     post_state,
                     &account_id,
-                    PRIVATE_PDA_FIXED_IDENTIFIER,
+                    &PrivateAccountKind::Pda {
+                        program_id: *pda_program_id,
+                        seed: *seed,
+                        identifier: *identifier,
+                    },
                     ssk,
                     new_nullifier,
                     new_nonce,
@@ -199,6 +194,7 @@ pub fn compute_circuit_output(
                 ssk,
                 nsk,
                 membership_proof,
+                identifier,
             } => {
                 // The npk binding is established upstream. Authorization must already be set;
                 // an unauthorized PrivatePdaUpdate would mean the prover supplied an nsk for an
@@ -218,12 +214,19 @@ pub fn compute_circuit_output(
                 let new_nonce = pre_state.account.nonce.private_account_nonce_increment(nsk);
 
                 let account_id = pre_state.account_id;
+                let (pda_program_id, seed) = pda_seed_by_position
+                    .get(&pos)
+                    .expect("PrivatePdaUpdate position must be in pda_seed_by_position");
                 emit_private_output(
                     &mut output,
                     &mut output_index,
                     post_state,
                     &account_id,
-                    PRIVATE_PDA_FIXED_IDENTIFIER,
+                    &PrivateAccountKind::Pda {
+                        program_id: *pda_program_id,
+                        seed: *seed,
+                        identifier: *identifier,
+                    },
                     ssk,
                     new_nullifier,
                     new_nonce,
@@ -244,7 +247,7 @@ fn emit_private_output(
     output_index: &mut u32,
     post_state: Account,
     account_id: &AccountId,
-    identifier: Identifier,
+    kind: &PrivateAccountKind,
     shared_secret: &SharedSecretKey,
     new_nullifier: (Nullifier, CommitmentSetDigest),
     new_nonce: Nonce,
@@ -257,7 +260,7 @@ fn emit_private_output(
     let commitment_post = Commitment::new(account_id, &post_with_updated_nonce);
     let encrypted_account = EncryptionScheme::encrypt(
         &post_with_updated_nonce,
-        identifier,
+        kind,
         shared_secret,
         &commitment_post,
         *output_index,
