@@ -397,6 +397,10 @@ impl ExecutionState {
     /// (recorded during `derive_from_outputs`), and an iterator over pre and post states of each
     /// account involved in the execution. Returning everything together keeps the
     /// fields module-private rather than forcing them visible to downstream consumers.
+    #[expect(
+        clippy::type_complexity,
+        reason = "tuple bundles four exit values from one consuming call so all fields stay private; a struct would only rename it"
+    )]
     pub fn into_parts(
         mut self,
     ) -> (
