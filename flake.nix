@@ -2,7 +2,7 @@
   description = "Logos Execution Zone";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
 
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
