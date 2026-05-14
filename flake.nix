@@ -2,6 +2,8 @@
   description = "Logos Execution Zone";
 
   inputs = {
+    logos-liblogos.url = "github:logos-co/logos-liblogos";
+
     nixpkgs.follows = "logos-liblogos/nixpkgs";
 
     rust-overlay = {
