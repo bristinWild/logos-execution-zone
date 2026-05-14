@@ -8431,7 +8431,6 @@ dependencies = [
  "nssa",
  "nssa_core",
  "rand 0.8.5",
- "rocksdb",
  "serde",
  "serde_json",
  "storage",

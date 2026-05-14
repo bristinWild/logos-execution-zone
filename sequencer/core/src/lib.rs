@@ -47,66 +47,60 @@ impl<BP: BlockPublisherTrait> SequencerCore<BP> {
         config: SequencerConfig,
     ) -> (Self, MemPoolHandle<NSSATransaction>) {
         let signing_key = nssa::PrivateKey::try_new(config.signing_key).unwrap();
-        let db_path = config.home.join("rocksdb");
 
         let bedrock_signing_key =
             load_or_create_signing_key(&config.home.join("bedrock_signing_key"))
                 .expect("Failed to load or create bedrock signing key");
 
-        let (store, state, genesis_block) =
-            match SequencerStore::open_db(&db_path, signing_key.clone()) {
-                Ok(store) => {
-                    let state = store
-                        .get_nssa_state()
-                        .expect("Failed to read state from store");
-                    let genesis_block = store
-                        .get_block_at_id(store.genesis_id())
-                        .expect("Failed to read genesis block from store")
-                        .expect("Genesis block not found in store");
-                    (store, state, genesis_block)
-                }
-                Err(DbError::RocksDbError { error, .. })
-                    if error.kind() == rocksdb::ErrorKind::InvalidArgument
-                        && error.to_string().contains("does not exist") =>
-                {
-                    warn!(
-                        "Database not found at {}, starting from genesis",
-                        db_path.display()
-                    );
-
-                    // TODO: Remove msg_id from BlockMeta — it is no longer needed now that
-                    // zone-sdk manages L1 settlement state via its own checkpoint.
-                    let genesis_msg_id = [0; 32];
-                    let genesis_parent_msg_id = [0; 32];
-                    let (genesis_state, genesis_txs) = build_genesis_state(&config);
-
-                    let hashable_data = HashableBlockData {
-                        block_id: GENESIS_BLOCK_ID,
-                        transactions: genesis_txs,
-                        prev_block_hash: HashType([0; 32]),
-                        timestamp: 0,
-                    };
-                    let genesis_block =
-                        hashable_data.into_pending_block(&signing_key, genesis_parent_msg_id);
-
-                    let store = SequencerStore::create_db_with_genesis(
-                        &db_path,
-                        &genesis_block,
-                        genesis_msg_id,
-                        &genesis_state,
-                        signing_key,
-                    )
-                    .expect("Failed to create database with genesis block");
-
-                    (store, genesis_state, genesis_block)
-                }
-                Err(err) => {
+        let db_path = config.home.join("rocksdb");
+        let (store, state, genesis_block) = if db_path.exists() {
+            let store =
+                SequencerStore::open_db(&db_path, signing_key.clone()).unwrap_or_else(|err| {
                     panic!(
-                        "Failed to open database at {} with error: {err:#?}",
+                        "Failed to open database at {} with error: {err}",
                         db_path.display()
-                    );
-                }
+                    )
+                });
+            let state = store
+                .get_nssa_state()
+                .expect("Failed to read state from store");
+            let genesis_block = store
+                .get_block_at_id(store.genesis_id())
+                .expect("Failed to read genesis block from store")
+                .expect("Genesis block not found in store");
+            (store, state, genesis_block)
+        } else {
+            warn!(
+                "Database not found at {}, starting from genesis",
+                db_path.display()
+            );
+
+            // TODO: Remove msg_id from BlockMeta — it is no longer needed now that
+            // zone-sdk manages L1 settlement state via its own checkpoint.
+            let genesis_msg_id = [0; 32];
+            let genesis_parent_msg_id = [0; 32];
+            let (genesis_state, genesis_txs) = build_genesis_state(&config);
+
+            let hashable_data = HashableBlockData {
+                block_id: GENESIS_BLOCK_ID,
+                transactions: genesis_txs,
+                prev_block_hash: HashType([0; 32]),
+                timestamp: 0,
             };
+            let genesis_block =
+                hashable_data.into_pending_block(&signing_key, genesis_parent_msg_id);
+
+            let store = SequencerStore::create_db_with_genesis(
+                &db_path,
+                &genesis_block,
+                genesis_msg_id,
+                &genesis_state,
+                signing_key,
+            )
+            .expect("Failed to create database with genesis block");
+
+            (store, genesis_state, genesis_block)
+        };
 
         let latest_block_meta = store
             .latest_block_meta()
