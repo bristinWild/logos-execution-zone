@@ -8,11 +8,39 @@
 //! executor cycle counts.
 
 #![allow(
+    clippy::arbitrary_source_item_ordering,
     clippy::arithmetic_side_effects,
-    clippy::print_stdout,
+    clippy::as_conversions,
+    clippy::cast_precision_loss,
+    clippy::doc_markdown,
+    clippy::float_arithmetic,
+    clippy::ignored_unit_patterns,
+    clippy::items_after_statements,
+    clippy::let_underscore_must_use,
+    clippy::let_underscore_untyped,
+    clippy::map_unwrap_or,
+    clippy::missing_const_for_fn,
+    clippy::missing_docs_in_private_items,
+    clippy::module_inception,
+    clippy::module_name_repetitions,
+    clippy::needless_pass_by_value,
+    clippy::no_effect_underscore_binding,
+    clippy::print_literal,
     clippy::print_stderr,
+    clippy::print_stdout,
+    clippy::ref_option,
+    clippy::ref_patterns,
+    clippy::similar_names,
+    clippy::single_call_fn,
+    clippy::single_match_else,
     clippy::std_instead_of_alloc,
     clippy::std_instead_of_core,
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::unnecessary_wraps,
+    clippy::unwrap_used,
+    clippy::useless_format,
+    clippy::wildcard_enum_match_arm,
     reason = "Bench tool: matches test-style fixture code"
 )]
 
@@ -21,11 +49,7 @@ use std::{path::PathBuf, time::Instant};
 mod ppe;
 mod stats;
 
-use stats::Stats;
-
-use amm_core::{
-    PoolDefinition, compute_liquidity_token_pda, compute_pool_pda, compute_vault_pda,
-};
+use amm_core::{PoolDefinition, compute_liquidity_token_pda, compute_pool_pda, compute_vault_pda};
 use anyhow::Result;
 use ata_core::{compute_ata_seed, get_associated_token_account_id};
 use clap::Parser;
@@ -43,6 +67,7 @@ use nssa_core::{
 };
 use risc0_zkvm::{ExecutorEnv, default_executor, default_prover};
 use serde::Serialize;
+use stats::Stats;
 use token_core::{TokenDefinition, TokenHolding};
 
 #[derive(Parser, Debug)]
@@ -166,7 +191,9 @@ fn run_case<I: Serialize>(
         prove_segments = Some(prove_info.stats.segments);
         eprintln!(
             "  prove({program}/{instruction_label}): {prove_ms:.1} ms ({:.1}s), total_cycles={}, segments={}",
-            prove_ms / 1_000.0, prove_info.stats.total_cycles, prove_info.stats.segments,
+            prove_ms / 1_000.0,
+            prove_info.stats.total_cycles,
+            prove_info.stats.segments,
         );
     }
 
@@ -513,11 +540,7 @@ fn main() -> Result<()> {
     print_table(&results, prove);
 
     #[cfg(feature = "ppe")]
-    let ppe_results = if cli.ppe {
-        ppe::run_all()?
-    } else {
-        Vec::new()
-    };
+    let ppe_results = if cli.ppe { ppe::run_all()? } else { Vec::new() };
     #[cfg(not(feature = "ppe"))]
     let ppe_results: Vec<ppe::PpeBenchResult> = {
         if cli.ppe {
@@ -589,11 +612,7 @@ fn print_table(results: &[BenchResult], prove: bool) {
 
     println!(
         "{:<pw$}  {:<iw$}  {:>cw$}  {:>sw$}  {:<exec_w$}",
-        "program",
-        "instruction",
-        "user_cycles",
-        "segments",
-        "exec_ms (best / mean ± stdev)",
+        "program", "instruction", "user_cycles", "segments", "exec_ms (best / mean ± stdev)",
     );
     println!("{}", "-".repeat(pw + iw + cw + sw + exec_w + 8));
     for r in results {

@@ -78,7 +78,11 @@ pub fn print_table(results: &[PpeBenchResult]) {
 
     println!(
         "\n{:<lw$}  {:>5}  {:>20}  {:>12}  {}",
-        "label", "depth", "prove_ms (s)", "proof_bytes", "error",
+        "label",
+        "depth",
+        "prove_ms (s)",
+        "proof_bytes",
+        "error",
         lw = lw,
     );
     println!("{}", "-".repeat(lw + 60));
@@ -94,7 +98,11 @@ pub fn print_table(results: &[PpeBenchResult]) {
         let e = r.error.as_deref().unwrap_or("");
         println!(
             "{:<lw$}  {:>5}  {:>20}  {:>12}  {}",
-            r.label, r.chain_depth, p, b, e,
+            r.label,
+            r.chain_depth,
+            p,
+            b,
+            e,
             lw = lw,
         );
     }
@@ -103,7 +111,10 @@ pub fn print_table(results: &[PpeBenchResult]) {
 pub fn print_verify(r: &VerifyBenchResult) {
     println!("\nVerify (G_verify):");
     println!("  case          : {}", r.label);
-    println!("  proof_bytes   : {} (borsh InnerReceipt, S_agg)", r.proof_bytes);
+    println!(
+        "  proof_bytes   : {} (borsh InnerReceipt, S_agg)",
+        r.proof_bytes
+    );
     println!("  journal_bytes : {}", r.journal_bytes);
     println!("  verify_ms     : {}", r.stats.format());
 }
@@ -114,7 +125,7 @@ mod ppe_impl {
 
     use nssa::{
         execute_and_prove,
-        privacy_preserving_transaction::circuit::{Proof, ProgramWithDependencies},
+        privacy_preserving_transaction::circuit::{ProgramWithDependencies, Proof},
         program::Program,
         program_methods::PRIVACY_PRESERVING_CIRCUIT_ID,
     };
@@ -128,8 +139,7 @@ mod ppe_impl {
     use super::{PpeBenchResult, VerifyBenchResult};
     use crate::stats::Stats;
 
-    const AUTH_TRANSFER_ID: ProgramId =
-        nssa::program_methods::AUTHENTICATED_TRANSFER_ID;
+    const AUTH_TRANSFER_ID: ProgramId = nssa::program_methods::AUTHENTICATED_TRANSFER_ID;
     const AUTH_TRANSFER_ELF: &[u8] = nssa::program_methods::AUTHENTICATED_TRANSFER_ELF;
 
     /// chain_caller bytecode shipped at artifacts/test_program_methods/chain_caller.bin.
@@ -161,8 +171,7 @@ mod ppe_impl {
         }
     }
 
-    fn prove_auth_transfer_in_ppe()
-    -> anyhow::Result<(PrivacyPreservingCircuitOutput, Proof)> {
+    fn prove_auth_transfer_in_ppe() -> anyhow::Result<(PrivacyPreservingCircuitOutput, Proof)> {
         let program = Program::new(AUTH_TRANSFER_ELF.to_vec())?;
         let pwd = ProgramWithDependencies::from(program);
 
