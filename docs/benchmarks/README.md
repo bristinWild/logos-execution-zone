@@ -1,8 +1,6 @@
 # Benchmarks
 
-Bench tools live under `tools/` with READMEs for how to run each one.
-This directory holds the result write-ups: machine, raw tables, and
-short findings.
+Bench tools live under `tools/` with READMEs for how to run each one. This directory holds the result write-ups: machine, raw tables, and short findings.
 
 | Bench | Doc |
 |---|---|
