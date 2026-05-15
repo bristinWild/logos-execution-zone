@@ -3646,7 +3646,6 @@ pub mod tests {
         );
 
         // Assert - should fail because the malicious program tries to manipulate is_authorized
-        println!("result: {:?}", result);
         assert!(matches!(result, Err(NssaError::CircuitProvingError(_))));
     }
 

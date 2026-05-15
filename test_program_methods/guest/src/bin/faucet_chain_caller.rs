@@ -1,6 +1,8 @@
 use nssa_core::{
     account::AccountId,
-    program::{AccountPostState, ChainedCall, ProgramId, ProgramInput, ProgramOutput, read_nssa_inputs},
+    program::{
+        AccountPostState, ChainedCall, ProgramId, ProgramInput, ProgramOutput, read_nssa_inputs,
+    },
 };
 use risc0_zkvm::serde::to_vec;
 

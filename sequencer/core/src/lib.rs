@@ -437,6 +437,8 @@ mod tests {
     };
     use logos_blockchain_core::mantle::ops::channel::ChannelId;
     use mempool::MemPoolHandle;
+    use nssa::{EphemeralPublicKey, SharedSecretKey};
+    use nssa_core::{NullifierPublicKey, account::AccountId, encryption::ViewingPublicKey};
     use tempfile::tempdir;
     use testnet_initial_state::{initial_accounts, initial_pub_accounts_private_keys};
 
@@ -1082,8 +1084,7 @@ mod tests {
         let attacker_id = initial_accounts()[0].account_id;
         let faucet_program_id = nssa::program::Program::faucet().id();
         let vault_program_id = nssa::program::Program::vault().id();
-        let attacker_vault_id =
-            vault_core::compute_vault_account_id(vault_program_id, attacker_id);
+        let attacker_vault_id = vault_core::compute_vault_account_id(vault_program_id, attacker_id);
         let amount: u128 = 1;
 
         let faucet_chain_caller_id =
@@ -1139,10 +1140,19 @@ mod tests {
         let attacker_id = initial_accounts()[0].account_id;
         let faucet_program_id = nssa::program::Program::faucet().id();
         let vault_program_id = nssa::program::Program::vault().id();
-        let auth_transfer_program_id = nssa::program::Program::authenticated_transfer_program().id();
-        let attacker_vault_id =
-            vault_core::compute_vault_account_id(vault_program_id, attacker_id);
-        let amount: u128 = 1_000;
+        let auth_transfer_program_id =
+            nssa::program::Program::authenticated_transfer_program().id();
+        let nsk = [3; 32];
+        let npk = NullifierPublicKey::from(&nsk);
+        let vsk = [4; 32];
+        let vpk = ViewingPublicKey::from_scalar(vsk);
+        let ssk = SharedSecretKey::new([55; 32], &vpk);
+        let epk = EphemeralPublicKey::from_scalar([55; 32]);
+        let attacker_vault_id = {
+            let seed = vault_core::compute_vault_seed(attacker_id);
+            AccountId::for_private_pda(&vault_program_id, &seed, &npk, 1337)
+        };
+        let amount: u128 = 1;
 
         let faucet_pre = AccountWithMetadata::new(
             sequencer.state.get_account_by_id(faucet_account_id),
@@ -1163,7 +1173,10 @@ mod tests {
             [
                 (faucet_program_id, nssa::program::Program::faucet()),
                 (vault_program_id, nssa::program::Program::vault()),
-                (auth_transfer_program_id, nssa::program::Program::authenticated_transfer_program()),
+                (
+                    auth_transfer_program_id,
+                    nssa::program::Program::authenticated_transfer_program(),
+                ),
             ]
             .into(),
         );
@@ -1181,16 +1194,20 @@ mod tests {
             instruction,
             vec![
                 InputAccountIdentity::Public,
-                InputAccountIdentity::Public,
+                InputAccountIdentity::PrivatePdaInit {
+                    npk,
+                    ssk,
+                    identifier: 1337,
+                },
             ],
             &program_with_deps,
         )
         .unwrap();
 
         let message = nssa::privacy_preserving_transaction::Message::try_from_circuit_output(
-            vec![faucet_account_id, attacker_vault_id],
+            vec![faucet_account_id],
             vec![], // no public signers
-            vec![],
+            vec![(npk, vpk, epk)],
             output,
         )
         .unwrap();
