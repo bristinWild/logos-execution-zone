@@ -26,6 +26,7 @@ use nssa_core::{
     Commitment, EncryptionScheme, SharedSecretKey,
     account::{Account, AccountId},
     encryption::{EphemeralPublicKey, EphemeralSecretKey},
+    program::PrivateAccountKind,
 };
 use rand::{RngCore as _, rngs::OsRng};
 use serde::Serialize;
@@ -89,7 +90,7 @@ fn main() -> Result<()> {
     let recipient_kc = KeyChain::new_os_random();
     let vpk = recipient_kc.viewing_public_key.clone();
     results.push(time("SharedSecretKey::new (sender DH)", ITERS, || {
-        let mut bytes = [0u8; 32];
+        let mut bytes = [0_u8; 32];
         OsRng.fill_bytes(&mut bytes);
         let esk: EphemeralSecretKey = bytes;
         let _epk = EphemeralPublicKey::from(&esk);
@@ -101,17 +102,17 @@ fn main() -> Result<()> {
     let account_id = AccountId::new([7; 32]);
     let commitment = Commitment::new(&account_id, &account);
     let shared = {
-        let mut bytes = [0u8; 32];
+        let mut bytes = [0_u8; 32];
         OsRng.fill_bytes(&mut bytes);
         let esk: EphemeralSecretKey = bytes;
         SharedSecretKey::new(&esk, &vpk)
     };
-    let identifier: u128 = 0;
+    let kind = PrivateAccountKind::Regular(0_u128);
     let output_index: u32 = 0;
 
     let mut produced_ct = None;
     results.push(time("EncryptionScheme::encrypt", ITERS, || {
-        let ct = EncryptionScheme::encrypt(&account, identifier, &shared, &commitment, output_index);
+        let ct = EncryptionScheme::encrypt(&account, &kind, &shared, &commitment, output_index);
         produced_ct = Some(ct);
     }));
     let ct = produced_ct.expect("encrypt produced ciphertext");
@@ -163,7 +164,9 @@ fn write_json(results: &[OpResult]) -> Result<()> {
         .join("..")
         .join("..")
         .canonicalize()?;
-    let out_path = workspace_root.join("target").join("wallet_crypto_bench.json");
+    let out_path = workspace_root
+        .join("target")
+        .join("wallet_crypto_bench.json");
     if let Some(parent) = out_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
