@@ -10,11 +10,14 @@
 
 #![allow(
     clippy::arithmetic_side_effects,
-    clippy::print_stdout,
+    clippy::as_conversions,
+    clippy::cast_precision_loss,
+    clippy::doc_markdown,
+    clippy::float_arithmetic,
     clippy::print_stderr,
+    clippy::print_stdout,
     clippy::std_instead_of_alloc,
     clippy::std_instead_of_core,
-    clippy::float_arithmetic,
     reason = "Bench tool"
 )]
 
@@ -88,7 +91,7 @@ fn main() -> Result<()> {
     // SharedSecretKey: caller has ephemeral secret, recipient has VSK→VPK.
     // We bench the SENDER side: derive ephemeral pubkey, then SharedSecretKey::new(scalar, point).
     let recipient_kc = KeyChain::new_os_random();
-    let vpk = recipient_kc.viewing_public_key.clone();
+    let vpk = recipient_kc.viewing_public_key;
     results.push(time("SharedSecretKey::new (sender DH)", ITERS, || {
         let mut bytes = [0_u8; 32];
         OsRng.fill_bytes(&mut bytes);
