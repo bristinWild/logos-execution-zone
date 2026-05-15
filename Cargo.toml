@@ -38,6 +38,7 @@ members = [
   "examples/program_deployment/methods/guest",
   "testnet_initial_state",
   "indexer/ffi",
+  "tools/wallet_crypto_bench",
 ]
 
 [workspace.dependencies]
