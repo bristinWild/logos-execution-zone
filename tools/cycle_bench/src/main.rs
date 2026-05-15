@@ -60,7 +60,9 @@ use clock_core::{
     ClockAccountData,
 };
 use nssa::program_methods::{
-    AMM_ELF, ASSOCIATED_TOKEN_ACCOUNT_ELF, AUTHENTICATED_TRANSFER_ELF, CLOCK_ELF, TOKEN_ELF,
+    AMM_ELF, AMM_ID, ASSOCIATED_TOKEN_ACCOUNT_ELF, ASSOCIATED_TOKEN_ACCOUNT_ID,
+    AUTHENTICATED_TRANSFER_ELF, AUTHENTICATED_TRANSFER_ID, CLOCK_ELF, CLOCK_ID, TOKEN_ELF,
+    TOKEN_ID,
 };
 use nssa_core::{
     Timestamp,
@@ -100,12 +102,6 @@ struct Cli {
     #[arg(long, default_value_t = 5)]
     exec_iters: usize,
 }
-
-const AMM_PROGRAM_ID: ProgramId = [42; 8];
-const TOKEN_PROGRAM_ID: ProgramId = [15; 8];
-const ATA_PROGRAM_ID: ProgramId = [88; 8];
-const CLOCK_PROGRAM_ID: ProgramId = [13; 8];
-const AUTH_TRANSFER_PROGRAM_ID: ProgramId = [7; 8];
 
 #[derive(Debug, Serialize)]
 struct BenchResult {
@@ -246,7 +242,7 @@ fn token_holding(
 ) -> AccountWithMetadata {
     AccountWithMetadata {
         account: Account {
-            program_owner: TOKEN_PROGRAM_ID,
+            program_owner: TOKEN_ID,
             balance: 0,
             data: Data::from(&TokenHolding::Fungible {
                 definition_id,
@@ -266,7 +262,7 @@ fn token_definition(
 ) -> AccountWithMetadata {
     AccountWithMetadata {
         account: Account {
-            program_owner: TOKEN_PROGRAM_ID,
+            program_owner: TOKEN_ID,
             balance: 0,
             data: Data::from(&TokenDefinition::Fungible {
                 name: String::from("test"),
@@ -304,7 +300,7 @@ fn token_burn_pre_states() -> Vec<AccountWithMetadata> {
 fn clock_account(account_id: AccountId, block_id: u64) -> AccountWithMetadata {
     AccountWithMetadata {
         account: Account {
-            program_owner: CLOCK_PROGRAM_ID,
+            program_owner: CLOCK_ID,
             balance: 0,
             data: ClockAccountData {
                 block_id,
@@ -335,16 +331,16 @@ fn amm_token_b_def_id() -> AccountId {
     AccountId::new([43; 32])
 }
 fn amm_pool_id() -> AccountId {
-    compute_pool_pda(AMM_PROGRAM_ID, amm_token_a_def_id(), amm_token_b_def_id())
+    compute_pool_pda(AMM_ID, amm_token_a_def_id(), amm_token_b_def_id())
 }
 fn amm_vault_a_id() -> AccountId {
-    compute_vault_pda(AMM_PROGRAM_ID, amm_pool_id(), amm_token_a_def_id())
+    compute_vault_pda(AMM_ID, amm_pool_id(), amm_token_a_def_id())
 }
 fn amm_vault_b_id() -> AccountId {
-    compute_vault_pda(AMM_PROGRAM_ID, amm_pool_id(), amm_token_b_def_id())
+    compute_vault_pda(AMM_ID, amm_pool_id(), amm_token_b_def_id())
 }
 fn amm_lp_def_id() -> AccountId {
-    compute_liquidity_token_pda(AMM_PROGRAM_ID, amm_pool_id())
+    compute_liquidity_token_pda(AMM_ID, amm_pool_id())
 }
 
 /// Pool seeded with reserves 1_000 / 500, lp supply sqrt(1000*500) = 707.
@@ -354,7 +350,7 @@ fn amm_pool_account() -> AccountWithMetadata {
     let lp_supply: u128 = (reserve_a * reserve_b).isqrt();
     AccountWithMetadata {
         account: Account {
-            program_owner: AMM_PROGRAM_ID,
+            program_owner: AMM_ID,
             balance: 0,
             data: Data::from(&PoolDefinition {
                 definition_token_a_id: amm_token_a_def_id(),
@@ -406,7 +402,7 @@ fn ata_create_pre_states() -> Vec<AccountWithMetadata> {
     };
     let token_def = token_definition(definition_id, 100_000, false);
     let seed = compute_ata_seed(owner_id, definition_id);
-    let ata_id = get_associated_token_account_id(&ATA_PROGRAM_ID, &seed);
+    let ata_id = get_associated_token_account_id(&ASSOCIATED_TOKEN_ACCOUNT_ID, &seed);
     let ata_account = AccountWithMetadata {
         account: Account::default(),
         is_authorized: false,
@@ -430,7 +426,7 @@ fn main() -> Result<()> {
         "authenticated_transfer",
         "Transfer",
         AUTHENTICATED_TRANSFER_ELF,
-        AUTH_TRANSFER_PROGRAM_ID,
+        AUTHENTICATED_TRANSFER_ID,
         authenticated_transfer_transfer(),
         &transfer_amount,
         prove,
@@ -441,7 +437,7 @@ fn main() -> Result<()> {
         "authenticated_transfer",
         "Initialize",
         AUTHENTICATED_TRANSFER_ELF,
-        AUTH_TRANSFER_PROGRAM_ID,
+        AUTHENTICATED_TRANSFER_ID,
         authenticated_transfer_init(),
         &init_amount,
         prove,
@@ -452,7 +448,7 @@ fn main() -> Result<()> {
         "token",
         "Transfer",
         TOKEN_ELF,
-        TOKEN_PROGRAM_ID,
+        TOKEN_ID,
         token_transfer_pre_states(),
         &token_core::Instruction::Transfer {
             amount_to_transfer: 5_000,
@@ -464,7 +460,7 @@ fn main() -> Result<()> {
         "token",
         "Mint",
         TOKEN_ELF,
-        TOKEN_PROGRAM_ID,
+        TOKEN_ID,
         token_mint_pre_states(),
         &token_core::Instruction::Mint {
             amount_to_mint: 5_000,
@@ -476,7 +472,7 @@ fn main() -> Result<()> {
         "token",
         "Burn",
         TOKEN_ELF,
-        TOKEN_PROGRAM_ID,
+        TOKEN_ID,
         token_burn_pre_states(),
         &token_core::Instruction::Burn {
             amount_to_burn: 500,
@@ -490,7 +486,7 @@ fn main() -> Result<()> {
         "clock",
         "Tick (block_id+1, no multiples)",
         CLOCK_ELF,
-        CLOCK_PROGRAM_ID,
+        CLOCK_ID,
         clock_pre_states_tick_at(0),
         &clock_timestamp,
         prove,
@@ -501,7 +497,7 @@ fn main() -> Result<()> {
         "amm",
         "SwapExactInput",
         AMM_ELF,
-        AMM_PROGRAM_ID,
+        AMM_ID,
         amm_swap_pre_states(),
         &amm_core::Instruction::SwapExactInput {
             swap_amount_in: 200,
@@ -515,7 +511,7 @@ fn main() -> Result<()> {
         "amm",
         "AddLiquidity",
         AMM_ELF,
-        AMM_PROGRAM_ID,
+        AMM_ID,
         amm_add_liquidity_pre_states(),
         &amm_core::Instruction::AddLiquidity {
             min_amount_liquidity: 1,
@@ -530,10 +526,10 @@ fn main() -> Result<()> {
         "ata",
         "Create",
         ASSOCIATED_TOKEN_ACCOUNT_ELF,
-        ATA_PROGRAM_ID,
+        ASSOCIATED_TOKEN_ACCOUNT_ID,
         ata_create_pre_states(),
         &ata_core::Instruction::Create {
-            ata_program_id: ATA_PROGRAM_ID,
+            ata_program_id: ASSOCIATED_TOKEN_ACCOUNT_ID,
         },
         prove,
         exec_iters,
