@@ -1060,4 +1060,183 @@ mod tests {
             "Block production should abort when clock account data is corrupted"
         );
     }
+
+    #[tokio::test]
+    async fn user_tx_that_chain_calls_faucet_is_dropped() {
+        let (mut sequencer, mempool_handle) = common_setup().await;
+
+        // Deploy the faucet_chain_caller test program.
+        let deploy_tx =
+            NSSATransaction::ProgramDeployment(nssa::ProgramDeploymentTransaction::new(
+                nssa::program_deployment_transaction::Message::new(
+                    test_program_methods::FAUCET_CHAIN_CALLER_ELF.to_vec(),
+                ),
+            ));
+        mempool_handle.push(deploy_tx).await.unwrap();
+        sequencer.produce_new_block().await.unwrap();
+
+        // The attacker chain-calls the faucet through their own program:
+        // faucet_chain_caller → faucet → vault → authenticated_transfer.
+        // Funds from the system faucet would land in the attacker's vault PDA.
+        let faucet_account_id = nssa::system_faucet_account_id();
+        let attacker_id = initial_accounts()[0].account_id;
+        let faucet_program_id = nssa::program::Program::faucet().id();
+        let vault_program_id = nssa::program::Program::vault().id();
+        let attacker_vault_id =
+            vault_core::compute_vault_account_id(vault_program_id, attacker_id);
+        let amount: u128 = 1_000;
+
+        let faucet_chain_caller_id =
+            nssa::program::Program::new(test_program_methods::FAUCET_CHAIN_CALLER_ELF.to_vec())
+                .unwrap()
+                .id();
+
+        let message = nssa::public_transaction::Message::try_new(
+            faucet_chain_caller_id,
+            vec![faucet_account_id, attacker_vault_id],
+            vec![], // no signers — faucet PDA authorization is handled internally
+            (faucet_program_id, vault_program_id, attacker_id, amount),
+        )
+        .unwrap();
+        let attack_tx = NSSATransaction::Public(nssa::PublicTransaction::new(
+            message,
+            nssa::public_transaction::WitnessSet::from_raw_parts(vec![]),
+        ));
+
+        let faucet_balance_before = sequencer.state.get_account_by_id(faucet_account_id).balance;
+        let vault_balance_before = sequencer.state.get_account_by_id(attacker_vault_id).balance;
+
+        mempool_handle.push(attack_tx).await.unwrap();
+        sequencer.produce_new_block().await.unwrap();
+
+        let block = sequencer
+            .store
+            .get_block_at_id(sequencer.chain_height)
+            .unwrap()
+            .unwrap();
+        let faucet_balance_after = sequencer.state.get_account_by_id(faucet_account_id).balance;
+        let vault_balance_after = sequencer.state.get_account_by_id(attacker_vault_id).balance;
+
+        // The attack tx must be dropped; only the mandatory clock invocation remains.
+        assert_eq!(
+            block.body.transactions,
+            vec![NSSATransaction::Public(clock_invocation(
+                block.header.timestamp
+            ))]
+        );
+        assert_eq!(faucet_balance_after, faucet_balance_before);
+        assert_eq!(vault_balance_after, vault_balance_before);
+    }
+
+    #[tokio::test]
+    async fn ppt_that_chain_calls_faucet_is_dropped() {
+        use nssa::privacy_preserving_transaction::circuit::ProgramWithDependencies;
+        use nssa_core::{InputAccountIdentity, account::AccountWithMetadata};
+
+        let (mut sequencer, mempool_handle) = common_setup().await;
+
+        // Deploy the faucet_chain_caller test program.
+        let deploy_tx =
+            NSSATransaction::ProgramDeployment(nssa::ProgramDeploymentTransaction::new(
+                nssa::program_deployment_transaction::Message::new(
+                    test_program_methods::FAUCET_CHAIN_CALLER_ELF.to_vec(),
+                ),
+            ));
+        mempool_handle.push(deploy_tx).await.unwrap();
+        sequencer.produce_new_block().await.unwrap();
+
+        // The attacker runs faucet_chain_caller inside a PPT circuit, producing a valid proof
+        // that the faucet was drained into their vault PDA.
+        let faucet_account_id = nssa::system_faucet_account_id();
+        let attacker_id = initial_accounts()[0].account_id;
+        let faucet_program_id = nssa::program::Program::faucet().id();
+        let vault_program_id = nssa::program::Program::vault().id();
+        let auth_transfer_program_id = nssa::program::Program::authenticated_transfer_program().id();
+        let attacker_vault_id =
+            vault_core::compute_vault_account_id(vault_program_id, attacker_id);
+        let amount: u128 = 1_000;
+
+        let faucet_pre = AccountWithMetadata::new(
+            sequencer.state.get_account_by_id(faucet_account_id),
+            false,
+            faucet_account_id,
+        );
+        let vault_pda_pre = AccountWithMetadata::new(
+            sequencer.state.get_account_by_id(attacker_vault_id),
+            false,
+            attacker_vault_id,
+        );
+
+        let faucet_chain_caller =
+            nssa::program::Program::new(test_program_methods::FAUCET_CHAIN_CALLER_ELF.to_vec())
+                .unwrap();
+        let program_with_deps = ProgramWithDependencies::new(
+            faucet_chain_caller,
+            [
+                (faucet_program_id, nssa::program::Program::faucet()),
+                (vault_program_id, nssa::program::Program::vault()),
+                (auth_transfer_program_id, nssa::program::Program::authenticated_transfer_program()),
+            ]
+            .into(),
+        );
+
+        let instruction = nssa::program::Program::serialize_instruction((
+            faucet_program_id,
+            vault_program_id,
+            attacker_id,
+            amount,
+        ))
+        .unwrap();
+
+        let (output, proof) = nssa::execute_and_prove(
+            vec![faucet_pre, vault_pda_pre],
+            instruction,
+            vec![
+                InputAccountIdentity::Public,
+                InputAccountIdentity::Public,
+            ],
+            &program_with_deps,
+        )
+        .unwrap();
+
+        let message = nssa::privacy_preserving_transaction::Message::try_from_circuit_output(
+            vec![faucet_account_id, attacker_vault_id],
+            vec![], // no public signers
+            vec![],
+            output,
+        )
+        .unwrap();
+        let witness_set = nssa::privacy_preserving_transaction::WitnessSet::for_message(
+            &message,
+            proof,
+            &[], // no signatures
+        );
+        let attack_ppt = NSSATransaction::PrivacyPreserving(
+            nssa::PrivacyPreservingTransaction::new(message, witness_set),
+        );
+
+        let faucet_balance_before = sequencer.state.get_account_by_id(faucet_account_id).balance;
+        let vault_balance_before = sequencer.state.get_account_by_id(attacker_vault_id).balance;
+
+        mempool_handle.push(attack_ppt).await.unwrap();
+        sequencer.produce_new_block().await.unwrap();
+
+        let block = sequencer
+            .store
+            .get_block_at_id(sequencer.chain_height)
+            .unwrap()
+            .unwrap();
+        let faucet_balance_after = sequencer.state.get_account_by_id(faucet_account_id).balance;
+        let vault_balance_after = sequencer.state.get_account_by_id(attacker_vault_id).balance;
+
+        // The attack PPT must be dropped; only the mandatory clock invocation remains.
+        assert_eq!(
+            block.body.transactions,
+            vec![NSSATransaction::Public(clock_invocation(
+                block.header.timestamp
+            ))]
+        );
+        assert_eq!(faucet_balance_after, faucet_balance_before);
+        assert_eq!(vault_balance_after, vault_balance_before);
+    }
 }
