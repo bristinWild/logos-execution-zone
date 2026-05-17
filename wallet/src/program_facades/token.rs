@@ -776,3 +776,93 @@ impl Token<'_> {
             })
     }
 }
+
+    pub async fn send_new_definition_with_authority(
+        &self,
+        definition_account_id: AccountId,
+        supply_account_id: AccountId,
+        name: String,
+        initial_supply: u128,
+        mint_authority: [u8; 32],
+    ) -> Result<HashType, ExecutionFailureKind> {
+        let account_ids = vec![definition_account_id, supply_account_id];
+        let instruction = Instruction::NewFungibleDefinitionWithAuthority {
+            name,
+            initial_supply,
+            mint_authority,
+        };
+        let nonces = self
+            .0
+            .get_accounts_nonces(account_ids.clone())
+            .await
+            .map_err(ExecutionFailureKind::SequencerError)?;
+        let message = nssa::public_transaction::Message::try_new(
+            Program::token().id(),
+            account_ids,
+            nonces,
+            instruction,
+        )
+        .unwrap();
+
+        let def_sk = self
+            .0
+            .storage
+            .user_data
+            .get_pub_account_signing_key(definition_account_id)
+            .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
+        let supply_sk = self
+            .0
+            .storage
+            .user_data
+            .get_pub_account_signing_key(supply_account_id)
+            .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
+
+        let witness_set = nssa::public_transaction::WitnessSet::for_message(
+            &message,
+            &[def_sk, supply_sk],
+        );
+        let tx = nssa::PublicTransaction::new(message, witness_set);
+        Ok(self
+            .0
+            .sequencer_client
+            .send_transaction(NSSATransaction::Public(tx))
+            .await?)
+    }
+
+    pub async fn send_set_authority(
+        &self,
+        definition_account_id: AccountId,
+        new_authority: Option<[u8; 32]>,
+    ) -> Result<HashType, ExecutionFailureKind> {
+        let account_ids = vec![definition_account_id];
+        let instruction = Instruction::SetAuthority { new_authority };
+        let nonces = self
+            .0
+            .get_accounts_nonces(account_ids.clone())
+            .await
+            .map_err(ExecutionFailureKind::SequencerError)?;
+        let message = nssa::public_transaction::Message::try_new(
+            Program::token().id(),
+            account_ids,
+            nonces,
+            instruction,
+        )
+        .unwrap();
+
+        let def_sk = self
+            .0
+            .storage
+            .user_data
+            .get_pub_account_signing_key(definition_account_id)
+            .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
+
+        let witness_set =
+            nssa::public_transaction::WitnessSet::for_message(&message, &[def_sk]);
+        let tx = nssa::PublicTransaction::new(message, witness_set);
+        Ok(self
+            .0
+            .sequencer_client
+            .send_transaction(NSSATransaction::Public(tx))
+            .await?)
+    }
+}
