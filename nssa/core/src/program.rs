@@ -434,6 +434,8 @@ pub struct ProgramOutput {
     pub post_states: Vec<AccountPostState>,
     /// The list of chained calls to other programs.
     pub chained_calls: Vec<ChainedCall>,
+    /// Events emitted during program execution.
+    pub events: Vec<lez_events::EventRecord>,
     /// The block ID window where the program output is valid.
     pub block_validity_window: BlockValidityWindow,
     /// The timestamp window where the program output is valid.
@@ -455,6 +457,7 @@ impl ProgramOutput {
             pre_states,
             post_states,
             chained_calls: Vec::new(),
+            events: Vec::new(),
             block_validity_window: ValidityWindow::new_unbounded(),
             timestamp_validity_window: ValidityWindow::new_unbounded(),
         }
@@ -466,6 +469,10 @@ impl ProgramOutput {
 
     pub fn with_chained_calls(mut self, chained_calls: Vec<ChainedCall>) -> Self {
         self.chained_calls = chained_calls;
+        self
+    }
+    pub fn with_events(mut self, events: Vec<lez_events::EventRecord>) -> Self {
+        self.events = events;
         self
     }
 

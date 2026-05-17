@@ -127,6 +127,9 @@ bip39 = "2.2.0"
 hmac-sha512 = "1.1.7"
 chrono = "0.4.41"
 borsh = "1.5.7"
+lez-events = { path = "lez-events" }
+lez-events-decoder = { path = "lez-events-decoder" }
+lez_authority = { path = "lez-authority" }
 base58 = "0.2.0"
 itertools = "0.14.0"
 url = { version = "2.5.4", features = ["serde"] }

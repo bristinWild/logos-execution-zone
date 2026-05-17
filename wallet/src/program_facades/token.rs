@@ -775,7 +775,6 @@ impl Token<'_> {
                 (resp, first)
             })
     }
-}
 
     pub async fn send_new_definition_with_authority(
         &self,
@@ -807,14 +806,14 @@ impl Token<'_> {
         let def_sk = self
             .0
             .storage
-            .user_data
-            .get_pub_account_signing_key(definition_account_id)
+            .key_chain()
+            .pub_account_signing_key(definition_account_id)
             .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
         let supply_sk = self
             .0
             .storage
-            .user_data
-            .get_pub_account_signing_key(supply_account_id)
+            .key_chain()
+            .pub_account_signing_key(supply_account_id)
             .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
 
         let witness_set = nssa::public_transaction::WitnessSet::for_message(
@@ -852,8 +851,8 @@ impl Token<'_> {
         let def_sk = self
             .0
             .storage
-            .user_data
-            .get_pub_account_signing_key(definition_account_id)
+            .key_chain()
+            .pub_account_signing_key(definition_account_id)
             .ok_or(ExecutionFailureKind::KeyNotFoundError)?;
 
         let witness_set =

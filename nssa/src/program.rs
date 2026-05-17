@@ -621,13 +621,16 @@ fn extract_events_from_panic_journal(
         Ok((sentinel, events))
             if sentinel == nssa_core::program::FAILURE_SENTINEL =>
         {
-            Some(ProgramOutput {
-                instruction_data: vec![],
-                pre_states: vec![],
-                post_states: vec![],
-                chained_calls: vec![],
-                events,
-            })
+            Some(
+                ProgramOutput::new(
+                    nssa_core::program::DEFAULT_PROGRAM_ID,
+                    None,
+                    vec![],
+                    vec![],
+                    vec![],
+                )
+                .with_events(events),
+            )
         }
         _ => None,
     }

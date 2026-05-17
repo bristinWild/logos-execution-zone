@@ -416,3 +416,31 @@ mod tests {
         assert_eq!(Some(tx), retrieved_tx);
     }
 }
+
+/// Stores events from successfully included transactions.
+#[derive(Debug, Default)]
+pub struct IncludedTxStore {
+    inner: std::collections::HashMap<common::HashType, IncludedTx>,
+}
+
+#[derive(Debug)]
+pub struct IncludedTx {
+    pub events: Vec<AttributedEventRecord>,
+    pub block_id: u64,
+}
+
+#[derive(Debug)]
+pub struct AttributedEventRecord {
+    pub program_id: [u32; 8],
+    pub event: lez_events::EventRecord,
+}
+
+impl IncludedTxStore {
+    pub fn insert(&mut self, tx_hash: common::HashType, tx: IncludedTx) {
+        self.inner.insert(tx_hash, tx);
+    }
+
+    pub fn get(&self, tx_hash: &common::HashType) -> Option<&IncludedTx> {
+        self.inner.get(tx_hash)
+    }
+}

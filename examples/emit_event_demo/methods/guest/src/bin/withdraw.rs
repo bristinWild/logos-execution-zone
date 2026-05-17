@@ -1,18 +1,9 @@
 //! Withdraw program — demonstrates event emission on both success and failure paths.
-//!
-//! On success: emits WithdrawSuccess event, updates account balance.
-//! On failure: emits InsufficientFunds event, commits events via
-//!   write_nssa_outputs_on_failure(), then panics.
-//!
-//! NOTE: In RISC0_DEV_MODE (no ZK proofs), the failure path events are only
-//! recoverable in production mode where the journal persists through guest panics.
-//! In dev mode, use the Result-based pattern instead for testability.
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use lez_events::emit_event;
 use nssa_core::program::{
-    AccountPostState, ProgramInput, read_nssa_inputs,
-    write_nssa_outputs, write_nssa_outputs_on_failure,
+    AccountPostState, ProgramInput, ProgramOutput, read_nssa_inputs,
+    write_nssa_outputs_on_failure,
 };
 use serde::{Deserialize, Serialize};
 
@@ -39,6 +30,8 @@ pub struct WithdrawSuccess {
 fn main() {
     let (
         ProgramInput {
+            self_program_id,
+            caller_program_id,
             pre_states,
             instruction: Instruction { amount },
         },
@@ -56,8 +49,6 @@ fn main() {
             requested: amount,
             available: balance,
         });
-        // Commit events to journal before panicking.
-        // In production ZK mode, these are recoverable from the receipt.
         write_nssa_outputs_on_failure();
         panic!("Insufficient funds: requested {amount}, available {balance}");
     }
@@ -71,5 +62,13 @@ fn main() {
     });
 
     let post_state = AccountPostState::new(post_account);
-    write_nssa_outputs(instruction_data, vec![pre_state], vec![post_state]);
+
+    ProgramOutput::new(
+        self_program_id,
+        caller_program_id,
+        instruction_data,
+        vec![pre_state],
+        vec![post_state],
+    )
+    .write();
 }
