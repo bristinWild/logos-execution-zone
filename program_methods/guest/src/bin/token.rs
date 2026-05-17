@@ -87,6 +87,22 @@ fn main() {
                 .expect("SetAuthority instruction requires exactly one account");
             token_program::set_authority::set_authority(definition_account, new_authority)
         }
+        Instruction::NewFungibleDefinitionWithAuthority {
+            name,
+            initial_supply,
+            mint_authority,
+        } => {
+            let [definition_account, holding_account] = pre_states
+                .try_into()
+                .expect("NewFungibleDefinitionWithAuthority requires exactly two accounts");
+            token_program::new_definition::new_fungible_definition_with_authority(
+                definition_account,
+                holding_account,
+                name,
+                initial_supply,
+                mint_authority,
+            )
+        }
     };
 
     ProgramOutput::new(
