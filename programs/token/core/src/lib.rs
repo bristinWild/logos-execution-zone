@@ -54,6 +54,19 @@ pub enum Instruction {
     /// - Token Holding account (uninitialized or authorized and initialized).
     Mint { amount_to_mint: u128 },
 
+    /// Create a new fungible token definition with a mint authority.
+    /// Unlike NewFungibleDefinition, this allows minting additional tokens later.
+    ///
+    /// Required accounts:
+    /// - Token Definition account (uninitialized, authorized),
+    /// - Token Holding account (uninitialized, authorized).
+    NewFungibleDefinitionWithAuthority {
+        name: String,
+        initial_supply: u128,
+        /// The initial mint authority. Can be rotated or revoked later via SetAuthority.
+        mint_authority: [u8; 32],
+    },
+
     /// Print a new NFT from the master copy.
     ///
     /// Required accounts:
