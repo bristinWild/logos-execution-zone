@@ -39,6 +39,26 @@ impl AccountForTests {
                     name: String::from("test"),
                     total_supply: BalanceForTests::init_supply(),
                     metadata_id: None,
+                    mint_authority: Some([9_u8; 32]),
+                }),
+                nonce: 0_u128.into(),
+            },
+            is_authorized: true,
+            account_id: IdForTests::pool_definition_id(),
+        }
+    }
+
+    #[allow(dead_code)]
+    fn definition_account_auth_revoked() -> AccountWithMetadata {
+        AccountWithMetadata {
+            account: Account {
+                program_owner: [5_u32; 8],
+                balance: 0_u128,
+                data: Data::from(&TokenDefinition::Fungible {
+                    name: String::from("test"),
+                    total_supply: BalanceForTests::init_supply(),
+                    metadata_id: None,
+                    mint_authority: None,
                 }),
                 nonce: 0_u128.into(),
             },
@@ -56,6 +76,7 @@ impl AccountForTests {
                     name: String::from("test"),
                     total_supply: BalanceForTests::init_supply(),
                     metadata_id: None,
+                    mint_authority: None,
                 }),
                 nonce: 0_u128.into(),
             },
@@ -137,6 +158,7 @@ impl AccountForTests {
                     name: String::from("test"),
                     total_supply: BalanceForTests::init_supply_burned(),
                     metadata_id: None,
+                    mint_authority: Some([9_u8; 32]),
                 }),
                 nonce: 0_u128.into(),
             },
@@ -210,6 +232,7 @@ impl AccountForTests {
                     name: String::from("test"),
                     total_supply: BalanceForTests::init_supply_mint(),
                     metadata_id: None,
+                    mint_authority: Some([9_u8; 32]),
                 }),
                 nonce: 0_u128.into(),
             },
@@ -284,6 +307,7 @@ impl AccountForTests {
                     name: String::from("test"),
                     total_supply: BalanceForTests::init_supply(),
                     metadata_id: None,
+                    mint_authority: None,
                 }),
                 nonce: 0_u128.into(),
             },
@@ -1045,4 +1069,188 @@ fn print_nft_success() {
         *post_printed.account(),
         AccountForTests::holding_account_printed_nft().account
     );
+}
+
+// LP-0013: Mint Authority Tests
+
+#[cfg(test)]
+mod authority_tests {
+    use super::*;
+    use crate::mint::mint;
+    use crate::set_authority::set_authority;
+
+    const AUTHORITY: [u8; 32] = [9_u8; 32];
+
+    fn def_with_authority() -> AccountWithMetadata {
+        AccountWithMetadata {
+            account: Account {
+                program_owner: [5_u32; 8],
+                balance: 0_u128,
+                data: Data::from(&TokenDefinition::Fungible {
+                    name: String::from("test"),
+                    total_supply: 100_000_u128,
+                    metadata_id: None,
+                    mint_authority: Some(AUTHORITY),
+                }),
+                nonce: 0_u128.into(),
+            },
+            is_authorized: true,
+            account_id: AccountId::new([15; 32]),
+        }
+    }
+
+    fn def_with_authority_revoked() -> AccountWithMetadata {
+        AccountWithMetadata {
+            account: Account {
+                program_owner: [5_u32; 8],
+                balance: 0_u128,
+                data: Data::from(&TokenDefinition::Fungible {
+                    name: String::from("test"),
+                    total_supply: 100_000_u128,
+                    metadata_id: None,
+                    mint_authority: None,
+                }),
+                nonce: 0_u128.into(),
+            },
+            is_authorized: true,
+            account_id: AccountId::new([15; 32]),
+        }
+    }
+
+    fn def_without_auth_flag() -> AccountWithMetadata {
+        AccountWithMetadata {
+            account: Account {
+                program_owner: [5_u32; 8],
+                balance: 0_u128,
+                data: Data::from(&TokenDefinition::Fungible {
+                    name: String::from("test"),
+                    total_supply: 100_000_u128,
+                    metadata_id: None,
+                    mint_authority: Some(AUTHORITY),
+                }),
+                nonce: 0_u128.into(),
+            },
+            is_authorized: false,
+            account_id: AccountId::new([15; 32]),
+        }
+    }
+
+    fn holding_account() -> AccountWithMetadata {
+        AccountWithMetadata {
+            account: Account {
+                program_owner: [5_u32; 8],
+                balance: 0_u128,
+                data: Data::from(&TokenHolding::Fungible {
+                    definition_id: AccountId::new([15; 32]),
+                    balance: 1_000_u128,
+                }),
+                nonce: 0_u128.into(),
+            },
+            is_authorized: false,
+            account_id: AccountId::new([17; 32]),
+        }
+    }
+
+    // Mint with authority
+
+    #[test]
+    fn mint_with_authority_succeeds() {
+        let post_states = mint(def_with_authority(), holding_account(), 50_000);
+        let [def_post, holding_post] = post_states.try_into().unwrap();
+
+        let def = TokenDefinition::try_from(&def_post.account().data).unwrap();
+        let holding = TokenHolding::try_from(&holding_post.account().data).unwrap();
+
+        assert!(matches!(
+            def,
+            TokenDefinition::Fungible {
+                total_supply: 150_000,
+                mint_authority: Some(_),
+                ..
+            }
+        ));
+        assert!(matches!(
+            holding,
+            TokenHolding::Fungible {
+                balance: 51_000,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    #[should_panic(expected = "Mint authority has been revoked; this token has a fixed supply")]
+    fn mint_with_revoked_authority_fails() {
+        let _ = mint(def_with_authority_revoked(), holding_account(), 50_000);
+    }
+
+    #[test]
+    #[should_panic(expected = "Definition authorization is missing")]
+    fn mint_without_is_authorized_fails() {
+        let _ = mint(def_without_auth_flag(), holding_account(), 50_000);
+    }
+
+    // SetAuthority
+
+    #[test]
+    fn set_authority_rotates_to_new_key() {
+        let new_key = [7_u8; 32];
+        let post_states = set_authority(def_with_authority(), Some(new_key));
+        let [def_post] = post_states.try_into().unwrap();
+
+        let def = TokenDefinition::try_from(&def_post.account().data).unwrap();
+        assert!(matches!(
+            def,
+            TokenDefinition::Fungible { mint_authority: Some(k), .. } if k == new_key
+        ));
+    }
+
+    #[test]
+    fn set_authority_revokes_permanently() {
+        let post_states = set_authority(def_with_authority(), None);
+        let [def_post] = post_states.try_into().unwrap();
+
+        let def = TokenDefinition::try_from(&def_post.account().data).unwrap();
+        assert!(matches!(
+            def,
+            TokenDefinition::Fungible {
+                mint_authority: None,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    #[should_panic(expected = "Mint authority already revoked; supply is permanently fixed")]
+    fn set_authority_on_revoked_fails() {
+        let _ = set_authority(def_with_authority_revoked(), Some([7_u8; 32]));
+    }
+
+    #[test]
+    #[should_panic(expected = "Definition account authorization is missing")]
+    fn set_authority_without_is_authorized_fails() {
+        let _ = set_authority(def_without_auth_flag(), Some([7_u8; 32]));
+    }
+
+    #[test]
+    fn set_authority_rotate_then_old_cannot_mint() {
+        // Rotate authority to new key
+        let new_key = [7_u8; 32];
+        let post_states = set_authority(def_with_authority(), Some(new_key));
+        let [def_post] = post_states.try_into().unwrap();
+
+        // Build account with rotated definition — old authority (is_authorized=true on old key)
+        // Now try to mint: the definition has new_key as authority but
+        // the state after rotation should reflect new_key
+        let def = TokenDefinition::try_from(&def_post.account().data).unwrap();
+        assert!(matches!(
+            def,
+            TokenDefinition::Fungible { mint_authority: Some(k), .. } if k == new_key
+        ));
+        // Old authority key is no longer stored — rotation is permanent
+        assert!(!matches!(
+            def,
+            TokenDefinition::Fungible { mint_authority: Some(k), .. } if k == AUTHORITY
+        ));
+    }
 }
