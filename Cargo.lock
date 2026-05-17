@@ -4757,6 +4757,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "lez-authority"
+version = "0.1.0"
+dependencies = [
+ "borsh",
+]
+
+[[package]]
 name = "lez-events"
 version = "0.1.0"
 dependencies = [

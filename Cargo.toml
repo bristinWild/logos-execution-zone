@@ -4,6 +4,7 @@ license = "MIT or Apache-2.0"
 [workspace]
 resolver = "3"
 members = [
+  "lez-authority",
   "integration_tests",
   "storage",
   "key_protocol",
