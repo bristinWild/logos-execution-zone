@@ -1348,3 +1348,247 @@ async fn transfer_token_using_from_label() -> Result<()> {
 
     Ok(())
 }
+
+//  LP-0013: Mint Authority Integration Tests
+
+#[test]
+async fn create_token_with_authority_and_mint() -> Result<()> {
+    let mut ctx = TestContext::new().await?;
+
+    // Create definition account (public)
+    let result = wallet::cli::execute_subcommand(
+        ctx.wallet_mut(),
+        Command::Account(AccountSubcommand::New(NewSubcommand::Public {
+            cci: None,
+            label: None,
+        })),
+    )
+    .await?;
+    let SubcommandReturnValue::RegisterAccount {
+        account_id: definition_account_id,
+    } = result
+    else {
+        anyhow::bail!("Expected RegisterAccount return value");
+    };
+
+    // Create supply account (public)
+    let result = wallet::cli::execute_subcommand(
+        ctx.wallet_mut(),
+        Command::Account(AccountSubcommand::New(NewSubcommand::Public {
+            cci: None,
+            label: None,
+        })),
+    )
+    .await?;
+    let SubcommandReturnValue::RegisterAccount {
+        account_id: supply_account_id,
+    } = result
+    else {
+        anyhow::bail!("Expected RegisterAccount return value");
+    };
+
+    // Get the definition account's public key to use as mint authority
+    let def_pubkey = ctx
+        .wallet()
+        .storage()
+        .user_data
+        .get_pub_account_public_key(definition_account_id)
+        .context("Failed to get definition account public key")?;
+
+    let name = "AuthCoin".to_owned();
+    let initial_supply = 1_000_u128;
+
+    // Create token WITH mint authority
+    wallet::program_facades::token::Token(ctx.wallet_mut().core_mut())
+        .send_new_definition_with_authority(
+            definition_account_id,
+            supply_account_id,
+            name.clone(),
+            initial_supply,
+            def_pubkey,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+
+    info!("Waiting for block...");
+    tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    // Verify definition has mint_authority set
+    let def_acc = ctx
+        .sequencer_client()
+        .get_account(definition_account_id)
+        .await?;
+    let token_definition = TokenDefinition::try_from(&def_acc.data)?;
+    assert!(
+        matches!(
+            token_definition,
+            TokenDefinition::Fungible {
+                mint_authority: Some(_),
+                ..
+            }
+        ),
+        "Token definition should have mint authority set"
+    );
+
+    // Create recipient account and mint more tokens
+    let result = wallet::cli::execute_subcommand(
+        ctx.wallet_mut(),
+        Command::Account(AccountSubcommand::New(NewSubcommand::Public {
+            cci: None,
+            label: None,
+        })),
+    )
+    .await?;
+    let SubcommandReturnValue::RegisterAccount {
+        account_id: recipient_account_id,
+    } = result
+    else {
+        anyhow::bail!("Expected RegisterAccount return value");
+    };
+
+    let mint_amount = 500_u128;
+    wallet::cli::execute_subcommand(
+        ctx.wallet_mut(),
+        Command::Token(TokenProgramAgnosticSubcommand::Mint {
+            definition: Some(format_public_account_id(definition_account_id)),
+            definition_label: None,
+            holder: Some(format_public_account_id(recipient_account_id)),
+            holder_label: None,
+            holder_npk: None,
+            holder_vpk: None,
+            holder_identifier: None,
+            amount: mint_amount,
+        }),
+    )
+    .await?;
+
+    info!("Waiting for block...");
+    tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    // Verify supply increased
+    let def_acc = ctx
+        .sequencer_client()
+        .get_account(definition_account_id)
+        .await?;
+    let token_definition = TokenDefinition::try_from(&def_acc.data)?;
+    assert_eq!(
+        token_definition,
+        TokenDefinition::Fungible {
+            name: name.clone(),
+            total_supply: initial_supply + mint_amount,
+            metadata_id: None,
+            mint_authority: Some(def_pubkey),
+        }
+    );
+
+    info!("Successfully created token with authority and minted additional supply");
+    Ok(())
+}
+
+#[test]
+async fn set_authority_revoke_prevents_minting() -> Result<()> {
+    let mut ctx = TestContext::new().await?;
+
+    // Create accounts
+    let result = wallet::cli::execute_subcommand(
+        ctx.wallet_mut(),
+        Command::Account(AccountSubcommand::New(NewSubcommand::Public {
+            cci: None,
+            label: None,
+        })),
+    )
+    .await?;
+    let SubcommandReturnValue::RegisterAccount {
+        account_id: definition_account_id,
+    } = result
+    else {
+        anyhow::bail!("Expected RegisterAccount return value");
+    };
+
+    let result = wallet::cli::execute_subcommand(
+        ctx.wallet_mut(),
+        Command::Account(AccountSubcommand::New(NewSubcommand::Public {
+            cci: None,
+            label: None,
+        })),
+    )
+    .await?;
+    let SubcommandReturnValue::RegisterAccount {
+        account_id: supply_account_id,
+    } = result
+    else {
+        anyhow::bail!("Expected RegisterAccount return value");
+    };
+
+    let def_pubkey = ctx
+        .wallet()
+        .storage()
+        .user_data
+        .get_pub_account_public_key(definition_account_id)
+        .context("Failed to get definition account public key")?;
+
+    // Create token with authority
+    wallet::program_facades::token::Token(ctx.wallet_mut().core_mut())
+        .send_new_definition_with_authority(
+            definition_account_id,
+            supply_account_id,
+            "RevokeCoin".to_owned(),
+            1_000_u128,
+            def_pubkey,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+
+    info!("Waiting for block...");
+    tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    // Revoke mint authority
+    wallet::program_facades::token::Token(ctx.wallet_mut().core_mut())
+        .send_set_authority(definition_account_id, None)
+        .await
+        .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+
+    info!("Waiting for block...");
+    tokio::time::sleep(Duration::from_secs(TIME_TO_WAIT_FOR_BLOCK_SECONDS)).await;
+
+    // Verify authority is revoked on-chain
+    let def_acc = ctx
+        .sequencer_client()
+        .get_account(definition_account_id)
+        .await?;
+    let token_definition = TokenDefinition::try_from(&def_acc.data)?;
+    assert!(
+        matches!(
+            token_definition,
+            TokenDefinition::Fungible {
+                mint_authority: None,
+                ..
+            }
+        ),
+        "Mint authority should be None after revocation"
+    );
+
+    // Attempt to mint — should fail
+    let result = wallet::cli::execute_subcommand(
+        ctx.wallet_mut(),
+        Command::Token(TokenProgramAgnosticSubcommand::Mint {
+            definition: Some(format_public_account_id(definition_account_id)),
+            definition_label: None,
+            holder: Some(format_public_account_id(supply_account_id)),
+            holder_label: None,
+            holder_npk: None,
+            holder_vpk: None,
+            holder_identifier: None,
+            amount: 1,
+        }),
+    )
+    .await;
+
+    assert!(
+        result.is_err(),
+        "Minting should fail after authority revocation"
+    );
+
+    info!("Successfully verified minting is rejected after authority revocation");
+    Ok(())
+}
