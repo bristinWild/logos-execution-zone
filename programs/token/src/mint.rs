@@ -12,11 +12,22 @@ pub fn mint(
 ) -> Vec<AccountPostState> {
     assert!(
         definition_account.is_authorized,
-        "Definition authorization is missing"
+        "Definition authorization is missing; only the mint authority can mint"
     );
 
     let mut definition = TokenDefinition::try_from(&definition_account.account.data)
         .expect("Token Definition account must be valid");
+
+    // LP-0013: enforce mint authority — minting is only allowed if mint_authority is Some.
+    // The is_authorized check above ensures the caller controls the definition account,
+    // which serves as proof they hold the mint authority key.
+    if let TokenDefinition::Fungible { mint_authority, .. } = &definition {
+        assert!(
+            mint_authority.is_some(),
+            "Mint authority has been revoked; this token has a fixed supply"
+        );
+    }
+
     let mut holding = if user_holding_account.account == Account::default() {
         TokenHolding::zeroized_from_definition(definition_account.account_id, &definition)
     } else {
