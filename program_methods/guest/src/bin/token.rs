@@ -81,6 +81,12 @@ fn main() {
                 .expect("PrintNft instruction requires exactly two accounts");
             token_program::print_nft::print_nft(master_account, printed_account)
         }
+        Instruction::SetAuthority { new_authority } => {
+            let [definition_account] = pre_states
+                .try_into()
+                .expect("SetAuthority instruction requires exactly one account");
+            token_program::set_authority::set_authority(definition_account, new_authority)
+        }
     };
 
     ProgramOutput::new(

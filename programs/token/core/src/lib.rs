@@ -60,6 +60,15 @@ pub enum Instruction {
     /// - NFT Master Token Holding account (authorized),
     /// - NFT Printed Copy Token Holding account (uninitialized, authorized).
     PrintNft,
+
+    /// Set or rotate the mint authority for a fungible token definition.
+    /// Pass `new_authority: None` to permanently revoke minting (fixed supply).
+    ///
+    /// Required accounts:
+    /// - Token Definition account (initialized, authorized by current mint authority).
+    SetAuthority {
+        new_authority: Option<[u8; 32]>,
+    },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -80,6 +89,9 @@ pub enum TokenDefinition {
         name: String,
         total_supply: u128,
         metadata_id: Option<AccountId>,
+        /// Mint authority. `None` = supply is permanently fixed (no further minting allowed).
+        /// Added by LP-0013.
+        mint_authority: Option<[u8; 32]>,
     },
     NonFungible {
         name: String,

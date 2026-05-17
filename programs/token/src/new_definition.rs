@@ -29,6 +29,7 @@ pub fn new_fungible_definition(
         name,
         total_supply,
         metadata_id: None,
+        mint_authority: None,
     };
     let token_holding = TokenHolding::Fungible {
         definition_id: definition_target_account.account_id,
@@ -79,6 +80,7 @@ pub fn new_definition_with_metadata(
                 name,
                 total_supply,
                 metadata_id: Some(metadata_target_account.account_id),
+                mint_authority: None,
             },
             TokenHolding::Fungible {
                 definition_id: definition_target_account.account_id,

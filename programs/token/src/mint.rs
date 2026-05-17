@@ -35,6 +35,7 @@ pub fn mint(
             TokenDefinition::Fungible {
                 name: _,
                 metadata_id: _,
+                mint_authority: _,
                 total_supply,
             },
             TokenHolding::Fungible {
