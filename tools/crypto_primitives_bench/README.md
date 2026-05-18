@@ -1,11 +1,11 @@
-# wallet_crypto_bench
+# crypto_primitives_bench
 
-Wallet-side cryptographic microbenchmarks. Single host binary, no live sequencer or Bedrock needed.
+Cryptographic primitive microbenchmarks used by client/wallet code. Single host binary, no live sequencer or Bedrock needed.
 
 ## Run
 
 ```sh
-cargo run --release -p wallet_crypto_bench
+cargo run --release -p crypto_primitives_bench
 ```
 
 ## What you'll see
@@ -17,4 +17,4 @@ Per-operation `best_us`, `mean_us`, and `stdev_us` over 100 iterations (plus 2 w
 - `SharedSecretKey::new (sender DH)` — secp256k1 ECDH per recipient.
 - `EncryptionScheme::encrypt` / `decrypt` — ChaCha20 over an Account note.
 
-JSON output is written to `target/wallet_crypto_bench.json`.
+JSON output is written to `target/crypto_primitives_bench.json`.

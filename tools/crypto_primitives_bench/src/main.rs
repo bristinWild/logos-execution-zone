@@ -169,7 +169,7 @@ fn write_json(results: &[OpResult]) -> Result<()> {
         .canonicalize()?;
     let out_path = workspace_root
         .join("target")
-        .join("wallet_crypto_bench.json");
+        .join("crypto_primitives_bench.json");
     if let Some(parent) = out_path.parent() {
         std::fs::create_dir_all(parent)?;
     }

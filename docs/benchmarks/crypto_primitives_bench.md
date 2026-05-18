@@ -1,6 +1,6 @@
-# wallet_crypto_bench
+# crypto_primitives_bench
 
-Wallet-side cryptographic primitives. Measures the per-call cost of key derivation, sender-side DH for note encryption, and Account note symmetric encrypt/decrypt. Standalone host binary, no live stack required.
+Cryptographic primitives used by client/wallet code. Measures the per-call cost of key derivation, sender-side DH for note encryption, and Account note symmetric encrypt/decrypt. Standalone host binary, no live stack required.
 
 ## Machine
 
@@ -33,10 +33,10 @@ Wallet-side cryptographic primitives. Measures the per-call cost of key derivati
 ## Reproduce
 
 ```sh
-cargo run --release -p wallet_crypto_bench
+cargo run --release -p crypto_primitives_bench
 ```
 
-JSON output: `target/wallet_crypto_bench.json`.
+JSON output: `target/crypto_primitives_bench.json`.
 
 ## Caveats
 
