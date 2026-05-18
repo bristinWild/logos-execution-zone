@@ -63,6 +63,11 @@ fn main() {
 
     let post_state = AccountPostState::new(post_account);
 
+    #[cfg(target_arch = "riscv32")]
+    let events = lez_events::drain_events();
+    #[cfg(not(target_arch = "riscv32"))]
+    let events = Vec::new();
+
     ProgramOutput::new(
         self_program_id,
         caller_program_id,
@@ -70,5 +75,6 @@ fn main() {
         vec![pre_state],
         vec![post_state],
     )
+    .with_events(events)
     .write();
 }

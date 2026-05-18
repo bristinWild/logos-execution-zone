@@ -3,15 +3,13 @@
 #[cfg(test)]
 mod tests {
     use nssa::{
-        AccountId, V03State,
         program::Program,
         error::NssaError,
     };
     use nssa_core::{
+        account::AccountId,
         account::{Account, AccountWithMetadata},
     };
-    use borsh::BorshDeserialize;
-    use lez_events::EventRecord;
 
     fn make_withdraw_program() -> Program {
         use emit_event_demo_methods::WITHDRAW_ELF;
@@ -36,7 +34,7 @@ mod tests {
         let account = make_account(1000);
         let instruction = serialize_instruction(300);
 
-        let output = program.execute(&[account], &instruction).unwrap();
+        let output = program.execute(None, &[account], &instruction).unwrap();
 
         // discriminant 2 = WithdrawSuccess
         assert_eq!(output.events.len(), 1);
@@ -51,7 +49,7 @@ mod tests {
         let account = make_account(100);
         let instruction = serialize_instruction(500);
 
-        let err = program.execute(&[account], &instruction).unwrap_err();
+        let err = program.execute(None, &[account], &instruction).unwrap_err();
 
         match err {
             NssaError::ProgramExecutionFailed { partial_output, .. } => {

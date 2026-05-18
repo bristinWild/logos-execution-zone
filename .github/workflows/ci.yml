@@ -40,7 +40,7 @@ jobs:
         # - result — depends on privacy circuit binaries
         run: RISC0_DEV_MODE=1 cargo test -p nssa -- --skip privacy_preserving_transaction::circuit --skip state::tests --skip result
       - name: Run emit_event_demo tests
-        run: RISC0_DEV_MODE=1 cargo test -p emit_event_demo
+        run: RISC0_DEV_MODE=1 cargo test -p emit_event_demo --lib
       - name: Run lez-authority tests (LP-0013)
         run: RISC0_DEV_MODE=1 cargo test -p lez-authority
       - name: Run token_program tests (LP-0013)
