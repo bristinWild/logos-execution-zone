@@ -42,6 +42,7 @@ members = [
   "testnet_initial_state",
   "indexer/ffi",
   "tools/cycle_bench",
+  "tools/crypto_primitives_bench",
 ]
 
 [workspace.dependencies]
