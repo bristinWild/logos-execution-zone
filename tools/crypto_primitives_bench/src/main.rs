@@ -93,7 +93,7 @@ fn main() -> Result<()> {
         OsRng.fill_bytes(&mut bytes);
         let esk: EphemeralSecretKey = bytes;
         let _epk = EphemeralPublicKey::from(&esk);
-        let _ssk = SharedSecretKey::new(&esk, &vpk);
+        let _ssk = SharedSecretKey::new(esk, &vpk);
     }));
 
     // EncryptionScheme::encrypt / decrypt over a small Account note.
@@ -104,7 +104,7 @@ fn main() -> Result<()> {
         let mut bytes = [0_u8; 32];
         OsRng.fill_bytes(&mut bytes);
         let esk: EphemeralSecretKey = bytes;
-        SharedSecretKey::new(&esk, &vpk)
+        SharedSecretKey::new(esk, &vpk)
     };
     let kind = PrivateAccountKind::Regular(0_u128);
     let output_index: u32 = 0;

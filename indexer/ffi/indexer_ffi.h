@@ -22,9 +22,10 @@ typedef enum FfiBedrockStatus {
   Finalized,
 } FfiBedrockStatus;
 
+typedef struct Option_u64 Option_u64;
+
 typedef struct IndexerServiceFFI {
   void *indexer_handle;
-  void *runtime;
   void *indexer_client;
 } IndexerServiceFFI;
 
@@ -41,16 +42,56 @@ typedef struct PointerResult_IndexerServiceFFI__OperationStatus {
 
 typedef struct PointerResult_IndexerServiceFFI__OperationStatus InitializedIndexerServiceFFIResult;
 
+typedef enum PointerKind_Tag {
+  Owned,
+  Borrowed,
+  Null,
+} PointerKind_Tag;
+
+typedef struct PointerKind {
+  PointerKind_Tag tag;
+  union {
+    struct {
+      void *owned;
+    };
+    struct {
+      const void *borrowed;
+    };
+  };
+} PointerKind;
+
+typedef struct Pointer_Runtime {
+  struct PointerKind kind;
+} Pointer_Runtime;
+
+/**
+ * Wrapper around [`tokio::runtime::Runtime`] that can be safely passed across the FFI boundary.
+ */
+typedef struct Runtime {
+  struct Pointer_Runtime inner;
+} Runtime;
+
 /**
  * Simple wrapper around a pointer to a value or an error.
  *
  * Pointer is not guaranteed. You should check the error field before
  * dereferencing the pointer.
  */
-typedef struct PointerResult_u64__OperationStatus {
-  uint64_t *value;
+typedef struct PointerResult_Runtime__OperationStatus {
+  struct Runtime *value;
   enum OperationStatus error;
-} PointerResult_u64__OperationStatus;
+} PointerResult_Runtime__OperationStatus;
+
+/**
+ * Simple wrapper around a pointer to a value or an error.
+ *
+ * Pointer is not guaranteed. You should check the error field before
+ * dereferencing the pointer.
+ */
+typedef struct PointerResult_Option_u64_____OperationStatus {
+  struct Option_u64 *value;
+  enum OperationStatus error;
+} PointerResult_Option_u64_____OperationStatus;
 
 typedef uint64_t FfiBlockId;
 
@@ -379,8 +420,20 @@ typedef struct PointerResult_FfiVec_FfiTransaction_____OperationStatus {
  *
  * An `InitializedIndexerServiceFFIResult` containing either a pointer to the
  * initialized `IndexerServiceFFI` or an error code.
+ *
+ * # Safety
+ * The caller must ensure that:
+ * - `runtime` is a valid pointer to a `tokio::runtime::Runtime` instance.
+ * - `config_path` is a valid pointer to a null-terminated C string.
  */
-InitializedIndexerServiceFFIResult start_indexer(const char *config_path, uint16_t port);
+InitializedIndexerServiceFFIResult start_indexer(const struct Runtime *runtime,
+                                                 const char *config_path,
+                                                 uint16_t port);
+
+/**
+ * Creates a new [`tokio::runtime::Runtime`].
+ */
+struct PointerResult_Runtime__OperationStatus new_runtime(void);
 
 /**
  * Stops and frees the resources associated with the given indexer service.
@@ -415,25 +468,27 @@ void free_cstring(char *block);
  *
  * # Arguments
  *
- * - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+ * - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
  *
  * # Returns
  *
- * A `PointerResult<u64, OperationStatus>` indicating success or failure.
+ * A `PointerResult<Option<u64>, OperationStatus>` indicating success or failure.
  *
  * # Safety
  *
  * The caller must ensure that:
- * - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+ * - `runtime` is a valid pointer to a [`Runtime`] instance.
+ * - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
  */
-struct PointerResult_u64__OperationStatus query_last_block(const struct IndexerServiceFFI *indexer);
+struct PointerResult_Option_u64_____OperationStatus query_last_block(const struct Runtime *runtime,
+                                                                     const struct IndexerServiceFFI *indexer);
 
 /**
  * Query the block by id from indexer.
  *
  * # Arguments
  *
- * - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+ * - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
  * - `block_id`: `u64` number of block id
  *
  * # Returns
@@ -443,9 +498,11 @@ struct PointerResult_u64__OperationStatus query_last_block(const struct IndexerS
  * # Safety
  *
  * The caller must ensure that:
- * - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+ * - `runtime` is a valid pointer to a [`Runtime`] instance.
+ * - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
  */
-struct PointerResult_FfiBlockOpt__OperationStatus query_block(const struct IndexerServiceFFI *indexer,
+struct PointerResult_FfiBlockOpt__OperationStatus query_block(const struct Runtime *runtime,
+                                                              const struct IndexerServiceFFI *indexer,
                                                               FfiBlockId block_id);
 
 /**
@@ -453,7 +510,7 @@ struct PointerResult_FfiBlockOpt__OperationStatus query_block(const struct Index
  *
  * # Arguments
  *
- * - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+ * - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
  * - `hash`: `FfiHashType` - hash of block
  *
  * # Returns
@@ -463,9 +520,11 @@ struct PointerResult_FfiBlockOpt__OperationStatus query_block(const struct Index
  * # Safety
  *
  * The caller must ensure that:
- * - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+ * - `runtime` is a valid pointer to a [`Runtime`] instance.
+ * - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
  */
-struct PointerResult_FfiBlockOpt__OperationStatus query_block_by_hash(const struct IndexerServiceFFI *indexer,
+struct PointerResult_FfiBlockOpt__OperationStatus query_block_by_hash(const struct Runtime *runtime,
+                                                                      const struct IndexerServiceFFI *indexer,
                                                                       FfiHashType hash);
 
 /**
@@ -473,7 +532,7 @@ struct PointerResult_FfiBlockOpt__OperationStatus query_block_by_hash(const stru
  *
  * # Arguments
  *
- * - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+ * - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
  * - `account_id`: `FfiAccountId` - id of queried account
  *
  * # Returns
@@ -483,9 +542,11 @@ struct PointerResult_FfiBlockOpt__OperationStatus query_block_by_hash(const stru
  * # Safety
  *
  * The caller must ensure that:
- * - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+ * - `runtime` is a valid pointer to a [`Runtime`] instance.
+ * - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
  */
-struct PointerResult_FfiAccount__OperationStatus query_account(const struct IndexerServiceFFI *indexer,
+struct PointerResult_FfiAccount__OperationStatus query_account(const struct Runtime *runtime,
+                                                               const struct IndexerServiceFFI *indexer,
                                                                FfiAccountId account_id);
 
 /**
@@ -493,7 +554,7 @@ struct PointerResult_FfiAccount__OperationStatus query_account(const struct Inde
  *
  * # Arguments
  *
- * - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+ * - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
  * - `hash`: `FfiHashType` - hash of transaction
  *
  * # Returns
@@ -503,9 +564,11 @@ struct PointerResult_FfiAccount__OperationStatus query_account(const struct Inde
  * # Safety
  *
  * The caller must ensure that:
- * - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+ * - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
+ * - `runtime` is a valid pointer to a [`Runtime`] instance.
  */
-struct PointerResult_FfiOption_FfiTransaction_____OperationStatus query_transaction(const struct IndexerServiceFFI *indexer,
+struct PointerResult_FfiOption_FfiTransaction_____OperationStatus query_transaction(const struct Runtime *runtime,
+                                                                                    const struct IndexerServiceFFI *indexer,
                                                                                     FfiHashType hash);
 
 /**
@@ -513,7 +576,7 @@ struct PointerResult_FfiOption_FfiTransaction_____OperationStatus query_transact
  *
  * # Arguments
  *
- * - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+ * - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
  * - `before`: `FfiOption<u64>` - end block of query
  * - `limit`: `u64` - number of blocks to query before `before`
  *
@@ -524,9 +587,11 @@ struct PointerResult_FfiOption_FfiTransaction_____OperationStatus query_transact
  * # Safety
  *
  * The caller must ensure that:
- * - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+ * - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
+ * - `runtime` is a valid pointer to a [`Runtime`] instance.
  */
-struct PointerResult_FfiVec_FfiBlock_____OperationStatus query_block_vec(const struct IndexerServiceFFI *indexer,
+struct PointerResult_FfiVec_FfiBlock_____OperationStatus query_block_vec(const struct Runtime *runtime,
+                                                                         const struct IndexerServiceFFI *indexer,
                                                                          struct FfiOption_u64 before,
                                                                          uint64_t limit);
 
@@ -535,7 +600,7 @@ struct PointerResult_FfiVec_FfiBlock_____OperationStatus query_block_vec(const s
  *
  * # Arguments
  *
- * - `indexer`: A pointer to the `IndexerServiceFFI` instance to be queried.
+ * - `indexer`: A pointer to the [`IndexerServiceFFI`] instance to be queried.
  * - `account_id`: `FfiAccountId` - id of queried account
  * - `offset`: `u64` - first tx id of query
  * - `limit`: `u64` - number of tx ids to query after `offset`
@@ -547,9 +612,11 @@ struct PointerResult_FfiVec_FfiBlock_____OperationStatus query_block_vec(const s
  * # Safety
  *
  * The caller must ensure that:
- * - `indexer` is a valid pointer to a `IndexerServiceFFI` instance
+ * - `indexer` is a valid pointer to a [`IndexerServiceFFI`] instance.
+ * - `runtime` is a valid pointer to a [`Runtime`] instance.
  */
-struct PointerResult_FfiVec_FfiTransaction_____OperationStatus query_transactions_by_account(const struct IndexerServiceFFI *indexer,
+struct PointerResult_FfiVec_FfiTransaction_____OperationStatus query_transactions_by_account(const struct Runtime *runtime,
+                                                                                             const struct IndexerServiceFFI *indexer,
                                                                                              FfiAccountId account_id,
                                                                                              uint64_t offset,
                                                                                              uint64_t limit);

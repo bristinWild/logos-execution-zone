@@ -32,6 +32,8 @@ pub struct ProgramInput<T> {
     Copy,
     Eq,
     PartialEq,
+    PartialOrd,
+    Ord,
     Hash,
     Serialize,
     Deserialize,
@@ -62,7 +64,18 @@ impl AsRef<[u8]> for PdaSeed {
 /// to reconstruct the account's [`AccountId`] on the receiver side.
 ///
 /// [`AccountId`]: crate::account::AccountId
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    BorshSerialize,
+    BorshDeserialize,
+)]
 pub enum PrivateAccountKind {
     Regular(Identifier),
     Pda {
@@ -719,7 +732,6 @@ pub fn validate_execution(
     }
 
     // 8. Total balance is preserved
-
     let Some(total_balance_pre_states) =
         WrappedBalanceSum::from_balances(pre_states.iter().map(|pre| pre.account.balance))
     else {

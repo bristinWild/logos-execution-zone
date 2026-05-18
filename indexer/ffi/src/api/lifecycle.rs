@@ -1,9 +1,7 @@
 use std::{ffi::c_char, path::PathBuf};
 
-use tokio::runtime::Runtime;
-
 use crate::{
-    IndexerServiceFFI,
+    IndexerServiceFFI, Runtime,
     api::{
         PointerResult,
         client::{UrlProtocol, addr_to_url},
@@ -26,14 +24,30 @@ pub type InitializedIndexerServiceFFIResult = PointerResult<IndexerServiceFFI, O
 ///
 /// An `InitializedIndexerServiceFFIResult` containing either a pointer to the
 /// initialized `IndexerServiceFFI` or an error code.
+///
+/// # Safety
+/// The caller must ensure that:
+/// - `runtime` is a valid pointer to a `tokio::runtime::Runtime` instance.
+/// - `config_path` is a valid pointer to a null-terminated C string.
 #[unsafe(no_mangle)]
-pub extern "C" fn start_indexer(
+pub unsafe extern "C" fn start_indexer(
+    runtime: *const Runtime,
     config_path: *const c_char,
     port: u16,
 ) -> InitializedIndexerServiceFFIResult {
-    setup_indexer(config_path, port).map_or_else(
+    // SAFETY: The caller must ensure the validness of the `runtime` and `config_path` pointers.
+    unsafe { setup_indexer(runtime, config_path, port) }.map_or_else(
         InitializedIndexerServiceFFIResult::from_error,
         InitializedIndexerServiceFFIResult::from_value,
+    )
+}
+
+/// Creates a new [`tokio::runtime::Runtime`].
+#[unsafe(no_mangle)]
+pub extern "C" fn new_runtime() -> PointerResult<Runtime, OperationStatus> {
+    Runtime::new().map_or_else(
+        |_e| PointerResult::from_error(OperationStatus::InitializationError),
+        PointerResult::from_value,
     )
 }
 
@@ -49,7 +63,13 @@ pub extern "C" fn start_indexer(
 ///
 /// A `Result` containing either the initialized `IndexerServiceFFI` or an
 /// error code.
-fn setup_indexer(
+///
+/// # Safety
+/// The caller must ensure that:
+/// - `runtime` is a valid pointer to a `tokio::runtime::Runtime` instance.
+/// - `config_path` is a valid pointer to a null-terminated C string.
+unsafe fn setup_indexer(
+    runtime: *const Runtime,
     config_path: *const c_char,
     port: u16,
 ) -> Result<IndexerServiceFFI, OperationStatus> {
@@ -66,9 +86,11 @@ fn setup_indexer(
         OperationStatus::InitializationError
     })?;
 
-    let rt = Runtime::new().unwrap();
+    // SAFETY: The caller must ensure that `runtime` is a valid pointer to a
+    // `tokio::runtime::Runtime` instance.
+    let runtime = unsafe { &*runtime };
 
-    let indexer_handle = rt
+    let indexer_handle = runtime
         .block_on(indexer_service::run_server(config, port))
         .map_err(|e| {
             log::error!("Could not start indexer service: {e}");
@@ -76,12 +98,14 @@ fn setup_indexer(
         })?;
 
     let indexer_url = addr_to_url(UrlProtocol::Ws, indexer_handle.addr())?;
-    let indexer_client = rt.block_on(IndexerClient::new(&indexer_url)).map_err(|e| {
-        log::error!("Could not start indexer client: {e}");
-        OperationStatus::InitializationError
-    })?;
+    let indexer_client = runtime
+        .block_on(IndexerClient::new(&indexer_url))
+        .map_err(|e| {
+            log::error!("Could not start indexer client: {e}");
+            OperationStatus::InitializationError
+        })?;
 
-    Ok(IndexerServiceFFI::new(indexer_handle, rt, indexer_client))
+    Ok(IndexerServiceFFI::new(indexer_handle, indexer_client))
 }
 
 /// Stops and frees the resources associated with the given indexer service.
