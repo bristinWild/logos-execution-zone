@@ -3127,6 +3127,7 @@ pub mod tests {
             name: String::from("PINATA"),
             total_supply,
             metadata_id: None,
+            mint_authority: None,
         };
         let token_holding = token_core::TokenHolding::Fungible {
             definition_id: pinata_token_definition_id,
