@@ -1,23 +1,19 @@
-//! Wallet-side cryptographic microbenchmarks.
+//! Cryptographic primitive microbenchmarks used by client/wallet code.
 //!
 //! Measures:
-//! - KeyChain::new_os_random (mnemonic → SSK → NSK/VSK + public keys)
-//! - KeyChain::new_mnemonic (same, but mnemonic exposed)
-//! - SharedSecretKey::new (Diffie-Hellman shared key derivation, the per-recipient cost)
-//! - EncryptionScheme::encrypt / decrypt (Account note encryption)
+//! - `KeyChain::new_os_random` (mnemonic → SSK → NSK/VSK + public keys)
+//! - `KeyChain::new_mnemonic` (same, but mnemonic exposed)
+//! - `SharedSecretKey::new` (Diffie-Hellman shared key derivation, the per-recipient cost)
+//! - `EncryptionScheme::encrypt` / `decrypt` (Account note encryption)
 //!
 //! Reports best-of-N wall time per operation. No live stack required.
 
-#![allow(
+#![expect(
     clippy::arithmetic_side_effects,
     clippy::as_conversions,
     clippy::cast_precision_loss,
-    clippy::doc_markdown,
     clippy::float_arithmetic,
-    clippy::print_stderr,
     clippy::print_stdout,
-    clippy::std_instead_of_alloc,
-    clippy::std_instead_of_core,
     reason = "Bench tool"
 )]
 
