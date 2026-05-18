@@ -4,13 +4,20 @@
 //! bench READMEs print) and mean +/- stdev (the figure the fee model wants, since
 //! it cares about the steady-state cost not a single fastest sample).
 
+use std::fmt;
+
 use serde::Serialize;
 
 #[derive(Debug, Serialize, Clone, Copy, Default)]
 pub struct Stats {
+    /// Number of samples in the aggregate (excluding warmup).
     pub n: usize,
+    /// Lowest sample (ms). Strips OS jitter; matches the bench README "best of N" figure.
     pub best_ms: f64,
+    /// Arithmetic mean of samples (ms).
     pub mean_ms: f64,
+    /// Sample standard deviation of samples (ms), computed with Bessel's correction (n-1).
+    /// 0.0 when n < 2.
     pub stdev_ms: f64,
 }
 
@@ -43,10 +50,13 @@ impl Stats {
             stdev_ms,
         }
     }
+}
 
-    /// Format as `best / mean ± stdev (n=N)` for table display.
-    pub fn format(&self) -> String {
-        format!(
+/// `best / mean ± stdev (n=N)` for table display.
+impl fmt::Display for Stats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
             "{:.2} / {:.2} ± {:.2} (n={})",
             self.best_ms, self.mean_ms, self.stdev_ms, self.n,
         )

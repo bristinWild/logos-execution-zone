@@ -581,7 +581,7 @@ fn print_table(results: &[BenchResult], prove: bool) {
     let sw = 8_usize;
     let exec_w = results
         .iter()
-        .map(|r| r.exec_stats.format().len())
+        .map(|r| r.exec_stats.to_string().len())
         .max()
         .unwrap_or(0)
         .max("exec_ms (best / mean ± stdev)".len());
@@ -594,11 +594,7 @@ fn print_table(results: &[BenchResult], prove: bool) {
     for r in results {
         println!(
             "{:<pw$}  {:<iw$}  {:>cw$}  {:>sw$}  {:<exec_w$}",
-            r.program,
-            r.instruction,
-            r.user_cycles,
-            r.segments,
-            r.exec_stats.format(),
+            r.program, r.instruction, r.user_cycles, r.segments, r.exec_stats,
         );
     }
 

@@ -118,5 +118,5 @@ pub fn print_verify(r: &VerifyBenchResult) {
         r.proof_bytes
     );
     println!("  journal_bytes : {}", r.journal_bytes);
-    println!("  verify_ms     : {}", r.stats.format());
+    println!("  verify_ms     : {}", r.stats);
 }
