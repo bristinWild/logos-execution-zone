@@ -7,49 +7,23 @@
 //! Run with `cargo run --release -p cycle_bench`. `RISC0_DEV_MODE` has no effect on
 //! executor cycle counts.
 
-#![allow(
-    clippy::arbitrary_source_item_ordering,
+#![expect(
     clippy::arithmetic_side_effects,
     clippy::as_conversions,
     clippy::cast_precision_loss,
-    clippy::doc_markdown,
     clippy::float_arithmetic,
-    clippy::ignored_unit_patterns,
-    clippy::items_after_statements,
-    clippy::let_underscore_must_use,
-    clippy::let_underscore_untyped,
-    clippy::map_unwrap_or,
     clippy::missing_const_for_fn,
-    clippy::missing_docs_in_private_items,
-    clippy::module_inception,
-    clippy::module_name_repetitions,
     clippy::needless_pass_by_value,
-    clippy::no_effect_underscore_binding,
     clippy::non_ascii_literal,
     clippy::print_literal,
     clippy::print_stderr,
     clippy::print_stdout,
-    clippy::redundant_type_annotations,
-    clippy::ref_option,
     clippy::ref_patterns,
-    clippy::similar_names,
-    clippy::single_call_fn,
-    clippy::single_match_else,
-    clippy::std_instead_of_alloc,
-    clippy::std_instead_of_core,
     clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::unnecessary_wraps,
-    clippy::unwrap_used,
-    clippy::useless_format,
-    clippy::wildcard_enum_match_arm,
     reason = "Bench tool: matches test-style fixture code"
 )]
 
 use std::{path::PathBuf, time::Instant};
-
-mod ppe;
-mod stats;
 
 use amm_core::{PoolDefinition, compute_liquidity_token_pda, compute_pool_pda, compute_vault_pda};
 use anyhow::Result;
@@ -71,8 +45,12 @@ use nssa_core::{
 };
 use risc0_zkvm::{ExecutorEnv, default_executor, default_prover};
 use serde::Serialize;
-use stats::Stats;
 use token_core::{TokenDefinition, TokenHolding};
+
+use stats::Stats;
+
+mod ppe;
+mod stats;
 
 #[derive(Parser, Debug)]
 #[command(about = "Per-program executor and (optionally) prover cycle measurements")]
@@ -82,14 +60,14 @@ struct Cli {
     prove: bool,
 
     /// Also run privacy-preserving execution circuit (PPE) composition cases:
-    /// (a) single auth_transfer Transfer through `execute_and_prove`, (b) chain_caller
+    /// (a) single `auth_transfer` Transfer through `execute_and_prove`, (b) `chain_caller`
     /// with depth N=1,3,5,9. Requires --features ppe at build time. Very slow.
     #[arg(long)]
     ppe: bool,
 
     /// After running --ppe-style proving once for auth_transfer-in-PPE, time
-    /// receipt.verify(PRIVACY_PRESERVING_CIRCUIT_ID) over many iterations.
-    /// Produces G_verify for the fee model. Requires --features ppe.
+    /// `receipt.verify(PRIVACY_PRESERVING_CIRCUIT_ID)` over many iterations.
+    /// Produces `G_verify` for the fee model. Requires --features ppe.
     #[arg(long)]
     verify: bool,
 
@@ -343,11 +321,11 @@ fn amm_lp_def_id() -> AccountId {
     compute_liquidity_token_pda(AMM_ID, amm_pool_id())
 }
 
-/// Pool seeded with reserves 1_000 / 500, lp supply sqrt(1000*500) = 707.
+/// Pool seeded with reserves `1_000` / `500`, lp supply `sqrt(1000*500) = 707`.
 fn amm_pool_account() -> AccountWithMetadata {
     let reserve_a: u128 = 1_000;
     let reserve_b: u128 = 500;
-    let lp_supply: u128 = (reserve_a * reserve_b).isqrt();
+    let lp_supply = (reserve_a * reserve_b).isqrt();
     AccountWithMetadata {
         account: Account {
             program_owner: AMM_ID,
@@ -384,7 +362,7 @@ fn amm_add_liquidity_pre_states() -> Vec<AccountWithMetadata> {
     let pool = amm_pool_account();
     let vault_a = token_holding(amm_token_a_def_id(), amm_vault_a_id(), 1_000, true);
     let vault_b = token_holding(amm_token_b_def_id(), amm_vault_b_id(), 500, true);
-    let lp_supply: u128 = (1_000_u128 * 500_u128).isqrt();
+    let lp_supply = (1_000_u128 * 500_u128).isqrt();
     let lp_def = token_definition(amm_lp_def_id(), lp_supply, true);
     let user_a = token_holding(amm_token_a_def_id(), AccountId::new([45; 32]), 1_000, true);
     let user_b = token_holding(amm_token_b_def_id(), AccountId::new([46; 32]), 500, true);
@@ -538,7 +516,7 @@ fn main() -> Result<()> {
     print_table(&results, prove);
 
     #[cfg(feature = "ppe")]
-    let ppe_results = if cli.ppe { ppe::run_all()? } else { Vec::new() };
+    let ppe_results = if cli.ppe { ppe::run_all() } else { Vec::new() };
     #[cfg(not(feature = "ppe"))]
     let ppe_results: Vec<ppe::PpeBenchResult> = {
         if cli.ppe {
@@ -637,16 +615,14 @@ fn print_table(results: &[BenchResult], prove: bool) {
         for r in results {
             let total = r
                 .prove_total_cycles
-                .map(|c| c.to_string())
-                .unwrap_or_else(|| "-".to_owned());
-            let pms = r
-                .prove_stats
-                .map(|s| format!("{:.1} ({:.1}s)", s.best_ms, s.best_ms / 1_000.0))
-                .unwrap_or_else(|| "-".to_owned());
+                .map_or_else(|| "-".to_owned(), |c| c.to_string());
+            let pms = r.prove_stats.map_or_else(
+                || "-".to_owned(),
+                |s| format!("{:.1} ({:.1}s)", s.best_ms, s.best_ms / 1_000.0),
+            );
             let psegs = r
                 .prove_segments
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "-".to_owned());
+                .map_or_else(|| "-".to_owned(), |s| s.to_string());
             println!(
                 "{:<pw$}  {:<iw$}  {:>pcw$}  {:>pwallw$}  {:>psw$}",
                 r.program, r.instruction, total, pms, psegs,
