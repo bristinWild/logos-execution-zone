@@ -13,13 +13,11 @@
     clippy::cast_precision_loss,
     clippy::float_arithmetic,
     clippy::missing_const_for_fn,
-    clippy::needless_pass_by_value,
     clippy::non_ascii_literal,
     clippy::print_literal,
     clippy::print_stderr,
     clippy::print_stdout,
     clippy::ref_patterns,
-    clippy::too_many_arguments,
     reason = "Bench tool: matches test-style fixture code"
 )]
 
@@ -101,90 +99,117 @@ struct BenchResult {
     prove_segments: Option<usize>,
 }
 
-fn run_case<I: Serialize>(
+struct Case {
     program: &'static str,
     instruction_label: &'static str,
-    elf: &[u8],
+    elf: &'static [u8],
     self_program_id: ProgramId,
     pre_states: Vec<AccountWithMetadata>,
-    instruction: &I,
-    prove: bool,
-    exec_iters: usize,
-) -> Result<BenchResult> {
-    let caller_program_id: Option<ProgramId> = None;
-    let instruction_words: InstructionData = risc0_zkvm::serde::to_vec(instruction)?;
+    instruction_words: InstructionData,
+}
 
-    // One warmup pass discarded, then `exec_iters` samples. The executor has
-    // large per-call setup overhead (ELF parsing, env init); reporting both
-    // best-of-N and mean ± stdev shows whether jitter is significant.
-    let mut samples: Vec<f64> = Vec::with_capacity(exec_iters);
-    let mut last_info = None;
-    let total = exec_iters.saturating_add(1).max(2);
-    for iter in 0..total {
-        let mut env_builder = ExecutorEnv::builder();
-        env_builder
-            .write(&self_program_id)?
-            .write(&caller_program_id)?
-            .write(&pre_states)?
-            .write(&instruction_words)?;
-        let env = env_builder.build()?;
+impl Case {
+    fn new<I: Serialize>(
+        program: &'static str,
+        instruction_label: &'static str,
+        elf: &'static [u8],
+        self_program_id: ProgramId,
+        pre_states: Vec<AccountWithMetadata>,
+        instruction: &I,
+    ) -> Result<Self> {
+        Ok(Self {
+            program,
+            instruction_label,
+            elf,
+            self_program_id,
+            pre_states,
+            instruction_words: risc0_zkvm::serde::to_vec(instruction)?,
+        })
+    }
 
-        let started = Instant::now();
-        let info = default_executor().execute(env, elf)?;
-        let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
+    fn run(self, prove: bool, exec_iters: usize) -> Result<BenchResult> {
+        let Self {
+            program,
+            instruction_label,
+            elf,
+            self_program_id,
+            pre_states,
+            instruction_words,
+        } = self;
+        let caller_program_id: Option<ProgramId> = None;
 
-        if iter > 0 {
-            samples.push(elapsed_ms);
+        // One warmup pass discarded, then `exec_iters` samples. The executor has
+        // large per-call setup overhead (ELF parsing, env init); reporting both
+        // best-of-N and mean ± stdev shows whether jitter is significant.
+        let mut samples: Vec<f64> = Vec::with_capacity(exec_iters);
+        let mut last_info = None;
+        let total = exec_iters.saturating_add(1).max(2);
+        for iter in 0..total {
+            let mut env_builder = ExecutorEnv::builder();
+            env_builder
+                .write(&self_program_id)?
+                .write(&caller_program_id)?
+                .write(&pre_states)?
+                .write(&instruction_words)?;
+            let env = env_builder.build()?;
+
+            let started = Instant::now();
+            let info = default_executor().execute(env, elf)?;
+            let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
+
+            if iter > 0 {
+                samples.push(elapsed_ms);
+            }
+            last_info = Some(info);
         }
-        last_info = Some(info);
+        let info = last_info.expect("at least one iteration");
+        let exec_stats = Stats::from_samples(&samples);
+
+        let mut prove_stats = None;
+        let mut prove_total_cycles = None;
+        let mut prove_user_cycles = None;
+        let mut prove_paging_cycles = None;
+        let mut prove_segments = None;
+        if prove {
+            let mut env_builder = ExecutorEnv::builder();
+            env_builder
+                .write(&self_program_id)?
+                .write(&caller_program_id)?
+                .write(&pre_states)?
+                .write(&instruction_words)?;
+            let env = env_builder.build()?;
+
+            let started = Instant::now();
+            let prove_info = default_prover()
+                .prove(env, elf)
+                .map_err(|e| anyhow::anyhow!("prove failed: {e}"))?;
+            let prove_ms = started.elapsed().as_secs_f64() * 1_000.0;
+            prove_stats = Some(Stats::from_samples(&[prove_ms]));
+            prove_total_cycles = Some(prove_info.stats.total_cycles);
+            prove_user_cycles = Some(prove_info.stats.user_cycles);
+            prove_paging_cycles = Some(prove_info.stats.paging_cycles);
+            prove_segments = Some(prove_info.stats.segments);
+            eprintln!(
+                "  prove({program}/{instruction_label}): {prove_ms:.1} ms ({:.1}s), total_cycles={}, segments={}",
+                prove_ms / 1_000.0,
+                prove_info.stats.total_cycles,
+                prove_info.stats.segments,
+            );
+        }
+
+        Ok(BenchResult {
+            program,
+            instruction: instruction_label,
+            user_cycles: info.cycles(),
+            segments: info.segments.len(),
+            exec_stats,
+            prove_stats,
+            prove_total_cycles,
+            prove_user_cycles,
+            prove_paging_cycles,
+            prove_segments,
+        })
     }
-    let info = last_info.expect("at least one iteration");
-    let exec_stats = Stats::from_samples(&samples);
-
-    let mut prove_stats = None;
-    let mut prove_total_cycles = None;
-    let mut prove_user_cycles = None;
-    let mut prove_paging_cycles = None;
-    let mut prove_segments = None;
-    if prove {
-        let mut env_builder = ExecutorEnv::builder();
-        env_builder
-            .write(&self_program_id)?
-            .write(&caller_program_id)?
-            .write(&pre_states)?
-            .write(&instruction_words)?;
-        let env = env_builder.build()?;
-
-        let started = Instant::now();
-        let prove_info = default_prover()
-            .prove(env, elf)
-            .map_err(|e| anyhow::anyhow!("prove failed: {e}"))?;
-        let prove_ms = started.elapsed().as_secs_f64() * 1_000.0;
-        prove_stats = Some(Stats::from_samples(&[prove_ms]));
-        prove_total_cycles = Some(prove_info.stats.total_cycles);
-        prove_user_cycles = Some(prove_info.stats.user_cycles);
-        prove_paging_cycles = Some(prove_info.stats.paging_cycles);
-        prove_segments = Some(prove_info.stats.segments);
-        eprintln!(
-            "  prove({program}/{instruction_label}): {prove_ms:.1} ms ({:.1}s), total_cycles={}, segments={}",
-            prove_ms / 1_000.0,
-            prove_info.stats.total_cycles,
-            prove_info.stats.segments,
-        );
-    }
-
-    Ok(BenchResult {
-        program,
-        instruction: instruction_label,
-        user_cycles: info.cycles(),
-        segments: info.segments.len(),
-        exec_stats,
-        prove_stats,
-        prove_total_cycles,
-        prove_user_cycles,
-        prove_paging_cycles,
-        prove_segments,
-    })
 }
 
 fn authenticated_transfer_init() -> Vec<AccountWithMetadata> {
@@ -397,121 +422,101 @@ fn main() -> Result<()> {
         eprintln!("cycle_bench: prove mode ON, this will be slow (~minutes per program)");
     }
 
-    let mut results: Vec<BenchResult> = Vec::new();
+    let cases = [
+        Case::new(
+            "authenticated_transfer",
+            "Transfer",
+            AUTHENTICATED_TRANSFER_ELF,
+            AUTHENTICATED_TRANSFER_ID,
+            authenticated_transfer_transfer(),
+            &5_000_u128,
+        )?,
+        Case::new(
+            "authenticated_transfer",
+            "Initialize",
+            AUTHENTICATED_TRANSFER_ELF,
+            AUTHENTICATED_TRANSFER_ID,
+            authenticated_transfer_init(),
+            &0_u128,
+        )?,
+        Case::new(
+            "token",
+            "Transfer",
+            TOKEN_ELF,
+            TOKEN_ID,
+            token_transfer_pre_states(),
+            &token_core::Instruction::Transfer {
+                amount_to_transfer: 5_000,
+            },
+        )?,
+        Case::new(
+            "token",
+            "Mint",
+            TOKEN_ELF,
+            TOKEN_ID,
+            token_mint_pre_states(),
+            &token_core::Instruction::Mint {
+                amount_to_mint: 5_000,
+            },
+        )?,
+        Case::new(
+            "token",
+            "Burn",
+            TOKEN_ELF,
+            TOKEN_ID,
+            token_burn_pre_states(),
+            &token_core::Instruction::Burn {
+                amount_to_burn: 500,
+            },
+        )?,
+        Case::new(
+            "clock",
+            "Tick (block_id+1, no multiples)",
+            CLOCK_ELF,
+            CLOCK_ID,
+            clock_pre_states_tick_at(0),
+            &Timestamp::from(1_700_000_000_u64),
+        )?,
+        Case::new(
+            "amm",
+            "SwapExactInput",
+            AMM_ELF,
+            AMM_ID,
+            amm_swap_pre_states(),
+            &amm_core::Instruction::SwapExactInput {
+                swap_amount_in: 200,
+                min_amount_out: 1,
+                token_definition_id_in: amm_token_a_def_id(),
+            },
+        )?,
+        Case::new(
+            "amm",
+            "AddLiquidity",
+            AMM_ELF,
+            AMM_ID,
+            amm_add_liquidity_pre_states(),
+            &amm_core::Instruction::AddLiquidity {
+                min_amount_liquidity: 1,
+                max_amount_to_add_token_a: 400,
+                max_amount_to_add_token_b: 200,
+            },
+        )?,
+        Case::new(
+            "ata",
+            "Create",
+            ASSOCIATED_TOKEN_ACCOUNT_ELF,
+            ASSOCIATED_TOKEN_ACCOUNT_ID,
+            ata_create_pre_states(),
+            &ata_core::Instruction::Create {
+                ata_program_id: ASSOCIATED_TOKEN_ACCOUNT_ID,
+            },
+        )?,
+    ];
 
-    let transfer_amount: u128 = 5_000;
-    results.push(run_case(
-        "authenticated_transfer",
-        "Transfer",
-        AUTHENTICATED_TRANSFER_ELF,
-        AUTHENTICATED_TRANSFER_ID,
-        authenticated_transfer_transfer(),
-        &transfer_amount,
-        prove,
-        exec_iters,
-    )?);
-    let init_amount: u128 = 0;
-    results.push(run_case(
-        "authenticated_transfer",
-        "Initialize",
-        AUTHENTICATED_TRANSFER_ELF,
-        AUTHENTICATED_TRANSFER_ID,
-        authenticated_transfer_init(),
-        &init_amount,
-        prove,
-        exec_iters,
-    )?);
-
-    results.push(run_case(
-        "token",
-        "Transfer",
-        TOKEN_ELF,
-        TOKEN_ID,
-        token_transfer_pre_states(),
-        &token_core::Instruction::Transfer {
-            amount_to_transfer: 5_000,
-        },
-        prove,
-        exec_iters,
-    )?);
-    results.push(run_case(
-        "token",
-        "Mint",
-        TOKEN_ELF,
-        TOKEN_ID,
-        token_mint_pre_states(),
-        &token_core::Instruction::Mint {
-            amount_to_mint: 5_000,
-        },
-        prove,
-        exec_iters,
-    )?);
-    results.push(run_case(
-        "token",
-        "Burn",
-        TOKEN_ELF,
-        TOKEN_ID,
-        token_burn_pre_states(),
-        &token_core::Instruction::Burn {
-            amount_to_burn: 500,
-        },
-        prove,
-        exec_iters,
-    )?);
-
-    let clock_timestamp = Timestamp::from(1_700_000_000_u64);
-    results.push(run_case(
-        "clock",
-        "Tick (block_id+1, no multiples)",
-        CLOCK_ELF,
-        CLOCK_ID,
-        clock_pre_states_tick_at(0),
-        &clock_timestamp,
-        prove,
-        exec_iters,
-    )?);
-
-    results.push(run_case(
-        "amm",
-        "SwapExactInput",
-        AMM_ELF,
-        AMM_ID,
-        amm_swap_pre_states(),
-        &amm_core::Instruction::SwapExactInput {
-            swap_amount_in: 200,
-            min_amount_out: 1,
-            token_definition_id_in: amm_token_a_def_id(),
-        },
-        prove,
-        exec_iters,
-    )?);
-    results.push(run_case(
-        "amm",
-        "AddLiquidity",
-        AMM_ELF,
-        AMM_ID,
-        amm_add_liquidity_pre_states(),
-        &amm_core::Instruction::AddLiquidity {
-            min_amount_liquidity: 1,
-            max_amount_to_add_token_a: 400,
-            max_amount_to_add_token_b: 200,
-        },
-        prove,
-        exec_iters,
-    )?);
-
-    results.push(run_case(
-        "ata",
-        "Create",
-        ASSOCIATED_TOKEN_ACCOUNT_ELF,
-        ASSOCIATED_TOKEN_ACCOUNT_ID,
-        ata_create_pre_states(),
-        &ata_core::Instruction::Create {
-            ata_program_id: ASSOCIATED_TOKEN_ACCOUNT_ID,
-        },
-        prove,
-        exec_iters,
-    )?);
+    let results: Vec<BenchResult> = cases
+        .into_iter()
+        .map(|c| c.run(prove, exec_iters))
+        .collect::<Result<Vec<_>>>()?;
 
     print_table(&results, prove);
 
