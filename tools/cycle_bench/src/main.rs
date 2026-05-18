@@ -43,9 +43,8 @@ use nssa_core::{
 };
 use risc0_zkvm::{ExecutorEnv, default_executor, default_prover};
 use serde::Serialize;
-use token_core::{TokenDefinition, TokenHolding};
-
 use stats::Stats;
+use token_core::{TokenDefinition, TokenHolding};
 
 mod ppe;
 mod stats;
