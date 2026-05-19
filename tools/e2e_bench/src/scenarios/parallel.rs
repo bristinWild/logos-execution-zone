@@ -42,7 +42,10 @@ pub async fn run(ctx: &mut BenchContext) -> Result<ScenarioResult> {
     }
 
     // Mint full supply into master.
-    let total_mint: u128 = (PARALLEL_FANOUT_N as u128) * AMOUNT_PER_TRANSFER * 10;
+    let total_mint = u128::try_from(PARALLEL_FANOUT_N)
+        .expect("usize fits u128")
+        .saturating_mul(AMOUNT_PER_TRANSFER)
+        .saturating_mul(10);
     {
         let pre_block = crate::harness::begin_step(ctx).await?;
         let started = Instant::now();
@@ -104,21 +107,21 @@ pub async fn run(ctx: &mut BenchContext) -> Result<ScenarioResult> {
         .await?;
     }
     let all_submitted_at = Instant::now();
-    let submit_duration_ms = (all_submitted_at - burst_started).as_secs_f64() * 1_000.0;
+    let submit_duration = all_submitted_at.saturating_duration_since(burst_started);
 
     // Wait for the chain to advance by at least 2 blocks past pre_block_burst.
     // That guarantees the block holding our burst is sealed and applied.
     crate::harness::wait_for_chain_advance(ctx, pre_block_burst, 2).await?;
     let inclusion_done_at = Instant::now();
-    let inclusion_after_submit_ms = (inclusion_done_at - all_submitted_at).as_secs_f64() * 1_000.0;
-    let burst_total_ms = (inclusion_done_at - burst_started).as_secs_f64() * 1_000.0;
+    let inclusion_after_submit = inclusion_done_at.saturating_duration_since(all_submitted_at);
+    let burst_total = inclusion_done_at.saturating_duration_since(burst_started);
 
     eprintln!(
-        "parallel_fanout: submitted {} txs in {:.1} ms, inclusion in {:.1} ms, total {:.1} ms",
+        "parallel_fanout: submitted {} txs in {:.3}s, inclusion in {:.3}s, total {:.3}s",
         senders.len(),
-        submit_duration_ms,
-        inclusion_after_submit_ms,
-        burst_total_ms,
+        submit_duration.as_secs_f64(),
+        inclusion_after_submit.as_secs_f64(),
+        burst_total.as_secs_f64(),
     );
 
     // Capture every block produced during the burst window. This is the
@@ -149,13 +152,13 @@ pub async fn run(ctx: &mut BenchContext) -> Result<ScenarioResult> {
     }
 
     // Synthesise a single summary "step" for the burst. Use the submit time
-    // for `submit_ms` and the inclusion-wait time for `inclusion_ms`.
+    // for `submit` and the inclusion-wait time for `inclusion`.
     let burst_step = StepResult {
         label: format!("burst_{}_transfers", senders.len()),
-        submit_ms: submit_duration_ms,
-        inclusion_ms: Some(inclusion_after_submit_ms),
-        wallet_sync_ms: None,
-        total_ms: burst_total_ms,
+        submit: submit_duration,
+        inclusion: Some(inclusion_after_submit),
+        wallet_sync: None,
+        total: burst_total,
         tx_hash: None,
         blocks,
     };

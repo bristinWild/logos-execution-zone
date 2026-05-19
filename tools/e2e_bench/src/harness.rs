@@ -1,11 +1,16 @@
 //! Step / scenario timing primitives shared across scenarios.
 
+#![allow(
+    clippy::ref_option,
+    reason = "serde::serialize_with requires fn(&Option<T>, S) -> Result<...>"
+)]
+
 use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
 use common::transaction::NSSATransaction;
 use sequencer_service_rpc::RpcClient as _;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use wallet::cli::SubcommandReturnValue;
 
 use crate::bench_context::BenchContext;
@@ -16,7 +21,7 @@ const TX_INCLUSION_TIMEOUT: Duration = Duration::from_secs(120);
 /// Borsh-serialized sizes for one zone block fetched after a step. `block_bytes`
 /// is the full Block (header + body + bedrock metadata) and is the closest
 /// proxy we have to the L1 payload posted per block. `tx_bytes` is each contained
-/// transaction split by variant — this is what the fee model's S_tx slot covers.
+/// transaction split by variant, which is what the fee model's `S_tx` slot covers.
 #[derive(Debug, Serialize, Clone, Default)]
 pub struct BlockSize {
     pub block_id: u64,
@@ -29,22 +34,28 @@ pub struct BlockSize {
 #[derive(Debug, Serialize, Clone)]
 pub struct StepResult {
     pub label: String,
-    pub submit_ms: f64,
-    pub inclusion_ms: Option<f64>,
-    pub wallet_sync_ms: Option<f64>,
-    pub total_ms: f64,
+    #[serde(serialize_with = "ser_duration_secs", rename = "submit_s")]
+    pub submit: Duration,
+    #[serde(serialize_with = "ser_opt_duration_secs", rename = "inclusion_s")]
+    pub inclusion: Option<Duration>,
+    #[serde(serialize_with = "ser_opt_duration_secs", rename = "wallet_sync_s")]
+    pub wallet_sync: Option<Duration>,
+    #[serde(serialize_with = "ser_duration_secs", rename = "total_s")]
+    pub total: Duration,
     pub tx_hash: Option<String>,
     /// Borsh sizes for every zone block produced during this step.
-    /// Empty for steps that don't advance the chain (e.g. RegisterAccount).
+    /// Empty for steps that don't advance the chain (e.g. `RegisterAccount`).
     pub blocks: Vec<BlockSize>,
 }
 
 #[derive(Debug, Serialize, Default)]
 pub struct ScenarioResult {
     pub name: String,
-    pub setup_ms: f64,
+    #[serde(serialize_with = "ser_duration_secs", rename = "setup_s")]
+    pub setup: Duration,
     pub steps: Vec<StepResult>,
-    pub total_ms: f64,
+    #[serde(serialize_with = "ser_duration_secs", rename = "total_s")]
+    pub total: Duration,
     /// Disk sizes (sequencer / indexer / wallet tempdirs) sampled at scenario start.
     pub disk_before: Option<crate::bench_context::DiskSizes>,
     /// Disk sizes sampled at scenario end.
@@ -53,7 +64,8 @@ pub struct ScenarioResult {
     /// reporting the sequencer tip as L1-finalised. Effectively measures the
     /// sequencer→Bedrock posting + Bedrock finalisation + indexer L1 ingest path.
     /// A value at the timeout (60s) means finalisation did not happen within the bench window.
-    pub bedrock_finality_ms: Option<f64>,
+    #[serde(serialize_with = "ser_opt_duration_secs", rename = "bedrock_finality_s")]
+    pub bedrock_finality: Option<Duration>,
 }
 
 impl ScenarioResult {
@@ -65,9 +77,16 @@ impl ScenarioResult {
     }
 
     pub fn push(&mut self, step: StepResult) {
-        self.total_ms += step.total_ms;
+        self.total = self.total.saturating_add(step.total);
         self.steps.push(step);
     }
+}
+
+/// Begin a timed step. Capture this *before* submitting the wallet operation
+/// so we can later subtract it from the post-submit block height to detect
+/// when the chain has advanced past the tx's block.
+pub async fn begin_step(ctx: &BenchContext) -> Result<u64> {
+    Ok(ctx.sequencer_client().get_last_block_id().await?)
 }
 
 /// Finish a timed wallet step. Records submit (the time between `started`
@@ -79,15 +98,8 @@ impl ScenarioResult {
 /// ```ignore
 /// let started = Instant::now();
 /// let ret = wallet::cli::execute_subcommand(ctx.wallet_mut(), cmd).await?;
-/// let step = finalize_step("label", started, ret, ctx).await?;
+/// let step = finalize_step("label", started, pre_block_id, &ret, ctx).await?;
 /// ```
-/// Begin a timed step. Capture this *before* submitting the wallet operation
-/// so we can later subtract it from the post-submit block height to detect
-/// when the chain has advanced past the tx's block.
-pub async fn begin_step(ctx: &BenchContext) -> Result<u64> {
-    Ok(ctx.sequencer_client().get_last_block_id().await?)
-}
-
 pub async fn finalize_step(
     label: impl Into<String>,
     started: Instant,
@@ -96,11 +108,11 @@ pub async fn finalize_step(
     ctx: &mut BenchContext,
 ) -> Result<StepResult> {
     let label = label.into();
-    let submit_ms = started.elapsed().as_secs_f64() * 1_000.0;
+    let submit = started.elapsed();
 
     let mut tx_hash_str = None;
-    let mut inclusion_ms = None;
-    let mut wallet_sync_ms = None;
+    let mut inclusion = None;
+    let mut wallet_sync = None;
     let mut blocks: Vec<BlockSize> = Vec::new();
 
     // For non-account-create steps (anything that produces a tx_hash, or even
@@ -115,11 +127,11 @@ pub async fn finalize_step(
         }
         let started_inclusion = Instant::now();
         wait_for_chain_advance(ctx, pre_block_id, 2).await?;
-        inclusion_ms = Some(started_inclusion.elapsed().as_secs_f64() * 1_000.0);
+        inclusion = Some(started_inclusion.elapsed());
 
         let started_sync = Instant::now();
         sync_wallet_to_tip(ctx).await?;
-        wallet_sync_ms = Some(started_sync.elapsed().as_secs_f64() * 1_000.0);
+        wallet_sync = Some(started_sync.elapsed());
 
         // Capture block-byte and per-tx-byte sizes for every block produced
         // during this step. We intentionally capture all blocks, including
@@ -151,10 +163,10 @@ pub async fn finalize_step(
 
     Ok(StepResult {
         label,
-        submit_ms,
-        inclusion_ms,
-        wallet_sync_ms,
-        total_ms: started.elapsed().as_secs_f64() * 1_000.0,
+        submit,
+        inclusion,
+        wallet_sync,
+        total: started.elapsed(),
         tx_hash: tx_hash_str,
         blocks,
     })
@@ -167,19 +179,21 @@ pub async fn wait_for_chain_advance(
     min_blocks: u64,
 ) -> Result<()> {
     let target = from_block_id.saturating_add(min_blocks);
-    let deadline = Instant::now() + TX_INCLUSION_TIMEOUT;
-    loop {
-        match ctx.sequencer_client().get_last_block_id().await {
-            Ok(current) if current >= target => return Ok(()),
-            Ok(_) => {}
-            Err(err) => eprintln!("get_last_block_id error (continuing poll): {err:#}"),
+    let poll = async {
+        loop {
+            match ctx.sequencer_client().get_last_block_id().await {
+                Ok(current) if current >= target => return,
+                Ok(_) => {}
+                Err(err) => eprintln!("get_last_block_id error (continuing poll): {err:#}"),
+            }
+            tokio::time::sleep(TX_INCLUSION_POLL_INTERVAL).await;
         }
-        if Instant::now() > deadline {
-            bail!(
-                "chain did not advance from {from_block_id} to at least {target} within {TX_INCLUSION_TIMEOUT:?}"
-            );
-        }
-        tokio::time::sleep(TX_INCLUSION_POLL_INTERVAL).await;
+    };
+    match tokio::time::timeout(TX_INCLUSION_TIMEOUT, poll).await {
+        Ok(()) => Ok(()),
+        Err(_) => bail!(
+            "chain did not advance from {from_block_id} to at least {target} within {TX_INCLUSION_TIMEOUT:?}"
+        ),
     }
 }
 
@@ -199,38 +213,35 @@ pub fn print_table(result: &ScenarioResult) {
         .max("step".len());
 
     println!(
-        "\nScenario: {} (setup {:.1} ms ({:.2}s), total {:.1} ms ({:.2}s))",
+        "\nScenario: {} (setup {:.2}s, total {:.2}s)",
         result.name,
-        result.setup_ms,
-        result.setup_ms / 1_000.0,
-        result.total_ms,
-        result.total_ms / 1_000.0,
+        result.setup.as_secs_f64(),
+        result.total.as_secs_f64(),
     );
     println!(
-        "{:<lw$}  {:>10}  {:>12}  {:>10}  {:>16}",
+        "{:<lw$}  {:>10}  {:>12}  {:>10}  {:>10}",
         "step",
-        "submit_ms",
-        "inclusion_ms",
-        "sync_ms",
-        "total_ms (s)",
+        "submit_s",
+        "inclusion_s",
+        "sync_s",
+        "total_s",
         lw = label_width,
     );
-    println!("{}", "-".repeat(label_width + 62));
+    println!("{}", "-".repeat(label_width.saturating_add(50)));
     for s in &result.steps {
         let inclusion = s
-            .inclusion_ms
-            .map_or_else(|| "-".to_owned(), |v| format!("{v:.1}"));
+            .inclusion
+            .map_or_else(|| "-".to_owned(), |v| format!("{:.3}", v.as_secs_f64()));
         let sync = s
-            .wallet_sync_ms
-            .map_or_else(|| "-".to_owned(), |v| format!("{v:.1}"));
-        let total = format!("{:.1} ({:.2}s)", s.total_ms, s.total_ms / 1_000.0);
+            .wallet_sync
+            .map_or_else(|| "-".to_owned(), |v| format!("{:.3}", v.as_secs_f64()));
         println!(
-            "{:<lw$}  {:>10.1}  {:>12}  {:>10}  {:>16}",
+            "{:<lw$}  {:>10.3}  {:>12}  {:>10}  {:>10.3}",
             s.label,
-            s.submit_ms,
+            s.submit.as_secs_f64(),
             inclusion,
             sync,
-            total,
+            s.total.as_secs_f64(),
             lw = label_width,
         );
     }
@@ -294,4 +305,18 @@ fn print_tx_line(label: &str, samples: &[usize]) {
 
 fn mean_usize(xs: &[usize]) -> usize {
     xs.iter().sum::<usize>().checked_div(xs.len()).unwrap_or(0)
+}
+
+fn ser_duration_secs<S: Serializer>(d: &Duration, s: S) -> std::result::Result<S::Ok, S::Error> {
+    s.serialize_f64(d.as_secs_f64())
+}
+
+fn ser_opt_duration_secs<S: Serializer>(
+    d: &Option<Duration>,
+    s: S,
+) -> std::result::Result<S::Ok, S::Error> {
+    match d {
+        Some(d) => s.serialize_f64(d.as_secs_f64()),
+        None => s.serialize_none(),
+    }
 }

@@ -26,7 +26,7 @@ Scenarios: `token`, `amm`, `fanout`, `private`, `parallel`, `all`.
 
 ## What you'll see
 
-Per scenario: a step table (`submit_ms`, `inclusion_ms`, `sync_ms`, `total_ms`) and a size summary covering every block captured during the scenario (block_bytes total/mean/min/max; per-tx-variant sizes for public, PPE, and program-deployment transactions).
+Per scenario: a step table (`submit_s`, `inclusion_s`, `sync_s`, `total_s`) and a size summary covering every block captured during the scenario (block_bytes total/mean/min/max; per-tx-variant sizes for public, PPE, and program-deployment transactions).
 
 The fanout, parallel, and private scenarios are the most representative for L1-payload-size measurements since they put multiple txs per block.
 

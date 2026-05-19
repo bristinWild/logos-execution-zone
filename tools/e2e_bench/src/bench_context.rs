@@ -1,10 +1,15 @@
-//! BenchContext: wires sequencer + indexer + wallet in-process against an
+//! `BenchContext`: wires sequencer + indexer + wallet in-process against an
 //! externally-running Bedrock node. Mirrors the surface of
 //! `integration_tests::TestContext` for the methods the scenarios need
 //! (`wallet_mut()`, `sequencer_client()`), but skips the docker setup.
 //!
 //! The external Bedrock URL defaults to 127.0.0.1:18080 and can be overridden
 //! with the `LEZ_BEDROCK_ADDR` env var.
+
+#![allow(
+    clippy::arbitrary_source_item_ordering,
+    reason = "file is deleted in the docker-compose pivot; ordering churn is wasted work"
+)]
 
 use std::{env, net::SocketAddr, path::Path};
 
@@ -145,7 +150,7 @@ impl BenchContext {
         &self.sequencer_client
     }
 
-    pub fn indexer_addr(&self) -> SocketAddr {
+    pub const fn indexer_addr(&self) -> SocketAddr {
         self.indexer_handle.addr()
     }
 

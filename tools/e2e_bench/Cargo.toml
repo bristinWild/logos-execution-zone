@@ -9,21 +9,21 @@ publish = false
 workspace = true
 
 [dependencies]
+common.workspace = true
+indexer_service.workspace = true
+indexer_service_rpc = { workspace = true, features = ["client"] }
 integration_tests.workspace = true
-wallet.workspace = true
 nssa.workspace = true
 sequencer_service.workspace = true
 sequencer_service_rpc = { workspace = true, features = ["client"] }
-indexer_service.workspace = true
-indexer_service_rpc = { workspace = true, features = ["client"] }
-jsonrpsee = { workspace = true, features = ["ws-client"] }
-common.workspace = true
-tempfile.workspace = true
-borsh.workspace = true
-chrono.workspace = true
+wallet.workspace = true
 
 anyhow.workspace = true
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+borsh.workspace = true
+chrono.workspace = true
 clap.workspace = true
+jsonrpsee = { workspace = true, features = ["ws-client"] }
 serde.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

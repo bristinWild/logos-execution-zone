@@ -2382,7 +2382,6 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 name = "e2e_bench"
 version = "0.1.0"
 dependencies = [
- "amm_core",
  "anyhow",
  "borsh",
  "chrono",
@@ -2392,15 +2391,12 @@ dependencies = [
  "indexer_service_rpc",
  "integration_tests",
  "jsonrpsee",
- "log",
  "nssa",
- "nssa_core",
  "sequencer_service",
  "sequencer_service_rpc",
  "serde",
  "serde_json",
  "tempfile",
- "token_core",
  "tokio",
  "wallet",
 ]

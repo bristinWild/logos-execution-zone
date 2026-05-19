@@ -2,13 +2,18 @@
 //! Launches a fresh Bedrock instance per scenario so the indexer never has to
 //! catch up a large finalization backlog.
 //!
-//! Required env vars (no defaults — path layouts differ per developer):
-//! - `LEZ_BEDROCK_BIN`         — absolute path to the `logos-blockchain-node` binary.
-//! - `LEZ_BEDROCK_CONFIG_DIR`  — directory containing `node-config.yaml` and
+//! Required env vars (no defaults, path layouts differ per developer):
+//! - `LEZ_BEDROCK_BIN`         absolute path to the `logos-blockchain-node` binary.
+//! - `LEZ_BEDROCK_CONFIG_DIR`  directory containing `node-config.yaml` and
 //!   `deployment-settings.yaml` (template with `PLACEHOLDER_CHAIN_START_TIME`).
 //!
 //! Optional:
 //! - `LEZ_BEDROCK_PORT` (default: 18080)
+
+#![allow(
+    clippy::let_underscore_must_use,
+    reason = "file is deleted in the docker-compose pivot; teardown ignores child kill/wait results by design"
+)]
 
 use std::{
     env,
