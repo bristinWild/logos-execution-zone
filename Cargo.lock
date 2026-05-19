@@ -9211,6 +9211,7 @@ version = "0.1.0"
 dependencies = [
  "authenticated_transfer_core",
  "clock_core",
+ "faucet_core",
  "nssa_core",
  "risc0-zkvm",
  "serde",
