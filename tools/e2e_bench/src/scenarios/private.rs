@@ -10,17 +10,17 @@ use wallet::cli::{
     programs::token::TokenProgramAgnosticSubcommand,
 };
 
-use crate::harness::{ScenarioResult, finalize_step};
+use crate::harness::{ScenarioOutput, finalize_step};
 
-pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<ScenarioResult> {
-    let mut result = ScenarioResult::new("private_chained_flow");
+pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<ScenarioOutput> {
+    let mut output = ScenarioOutput::new("private_chained_flow");
 
-    let def_id = new_public_account(ctx, &mut result, "create_acc_def").await?;
-    let supply_id = new_public_account(ctx, &mut result, "create_acc_supply").await?;
+    let def_id = new_public_account(ctx, &mut output, "create_acc_def").await?;
+    let supply_id = new_public_account(ctx, &mut output, "create_acc_supply").await?;
     let public_recipient_id =
-        new_public_account(ctx, &mut result, "create_acc_pub_recipient").await?;
-    let private_a = new_private_account(ctx, &mut result, "create_acc_priv_a").await?;
-    let private_b = new_private_account(ctx, &mut result, "create_acc_priv_b").await?;
+        new_public_account(ctx, &mut output, "create_acc_pub_recipient").await?;
+    let private_a = new_private_account(ctx, &mut output, "create_acc_priv_a").await?;
+    let private_b = new_private_account(ctx, &mut output, "create_acc_priv_b").await?;
 
     // Mint into public supply.
     {
@@ -37,7 +37,7 @@ pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<Scenari
         )
         .await?;
         let step = finalize_step("token_new_fungible", started, pre_block, &ret, ctx).await?;
-        result.push(step);
+        output.push(step);
     }
 
     // Shielded transfer: public supply -> private_a.
@@ -57,7 +57,7 @@ pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<Scenari
         )
         .await?;
         let step = finalize_step("shielded_transfer", started, pre_block, &ret, ctx).await?;
-        result.push(step);
+        output.push(step);
     }
 
     // Deshielded transfer: private_a -> public_recipient.
@@ -77,7 +77,7 @@ pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<Scenari
         )
         .await?;
         let step = finalize_step("deshielded_transfer", started, pre_block, &ret, ctx).await?;
-        result.push(step);
+        output.push(step);
     }
 
     // Private-to-private transfer: private_a -> private_b.
@@ -97,15 +97,15 @@ pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<Scenari
         )
         .await?;
         let step = finalize_step("private_to_private", started, pre_block, &ret, ctx).await?;
-        result.push(step);
+        output.push(step);
     }
 
-    Ok(result)
+    Ok(output)
 }
 
 async fn new_public_account(
     ctx: &mut crate::bench_context::BenchContext,
-    result: &mut ScenarioResult,
+    output: &mut ScenarioOutput,
     label: &str,
 ) -> Result<nssa::AccountId> {
     let pre_block = crate::harness::begin_step(ctx).await?;
@@ -119,7 +119,7 @@ async fn new_public_account(
     )
     .await?;
     let step = finalize_step(label, started, pre_block, &ret, ctx).await?;
-    result.push(step);
+    output.push(step);
     match ret {
         SubcommandReturnValue::RegisterAccount { account_id } => Ok(account_id),
         other => bail!("expected RegisterAccount, got {other:?}"),
@@ -128,7 +128,7 @@ async fn new_public_account(
 
 async fn new_private_account(
     ctx: &mut crate::bench_context::BenchContext,
-    result: &mut ScenarioResult,
+    output: &mut ScenarioOutput,
     label: &str,
 ) -> Result<nssa::AccountId> {
     let pre_block = crate::harness::begin_step(ctx).await?;
@@ -142,7 +142,7 @@ async fn new_private_account(
     )
     .await?;
     let step = finalize_step(label, started, pre_block, &ret, ctx).await?;
-    result.push(step);
+    output.push(step);
     match ret {
         SubcommandReturnValue::RegisterAccount { account_id } => Ok(account_id),
         other => bail!("expected RegisterAccount, got {other:?}"),

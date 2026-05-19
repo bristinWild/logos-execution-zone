@@ -49,7 +49,7 @@ pub struct StepResult {
 }
 
 #[derive(Debug, Serialize, Default)]
-pub struct ScenarioResult {
+pub struct ScenarioOutput {
     pub name: String,
     #[serde(serialize_with = "ser_duration_secs", rename = "setup_s")]
     pub setup: Duration,
@@ -68,7 +68,7 @@ pub struct ScenarioResult {
     pub bedrock_finality: Option<Duration>,
 }
 
-impl ScenarioResult {
+impl ScenarioOutput {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -203,8 +203,8 @@ async fn sync_wallet_to_tip(ctx: &mut BenchContext) -> Result<()> {
     Ok(())
 }
 
-pub fn print_table(result: &ScenarioResult) {
-    let label_width = result
+pub fn print_table(output: &ScenarioOutput) {
+    let label_width = output
         .steps
         .iter()
         .map(|s| s.label.len())
@@ -214,9 +214,9 @@ pub fn print_table(result: &ScenarioResult) {
 
     println!(
         "\nScenario: {} (setup {:.2}s, total {:.2}s)",
-        result.name,
-        result.setup.as_secs_f64(),
-        result.total.as_secs_f64(),
+        output.name,
+        output.setup.as_secs_f64(),
+        output.total.as_secs_f64(),
     );
     println!(
         "{:<lw$}  {:>10}  {:>12}  {:>10}  {:>10}",
@@ -228,7 +228,7 @@ pub fn print_table(result: &ScenarioResult) {
         lw = label_width,
     );
     println!("{}", "-".repeat(label_width.saturating_add(50)));
-    for s in &result.steps {
+    for s in &output.steps {
         let inclusion = s
             .inclusion
             .map_or_else(|| "-".to_owned(), |v| format!("{:.3}", v.as_secs_f64()));
@@ -246,13 +246,13 @@ pub fn print_table(result: &ScenarioResult) {
         );
     }
 
-    print_size_summary(result);
+    print_size_summary(output);
 }
 
 /// Aggregate borsh sizes per scenario: total/mean/min/max block bytes, and
 /// per-tx bytes split by variant. Empty if no blocks were captured.
-fn print_size_summary(result: &ScenarioResult) {
-    let blocks: Vec<&BlockSize> = result.steps.iter().flat_map(|s| s.blocks.iter()).collect();
+fn print_size_summary(output: &ScenarioOutput) {
+    let blocks: Vec<&BlockSize> = output.steps.iter().flat_map(|s| s.blocks.iter()).collect();
     if blocks.is_empty() {
         return;
     }

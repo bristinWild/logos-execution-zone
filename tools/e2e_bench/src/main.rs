@@ -34,7 +34,7 @@ use anyhow::{Context as _, Result};
 use bedrock_handle::BedrockHandle;
 use bench_context::BenchContext;
 use clap::{Parser, ValueEnum};
-use harness::ScenarioResult;
+use harness::ScenarioOutput;
 use serde::Serialize;
 
 mod bedrock_handle;
@@ -67,7 +67,7 @@ struct Cli {
 #[derive(Debug, Serialize)]
 struct BenchRunReport {
     risc0_dev_mode: bool,
-    scenarios: Vec<ScenarioResult>,
+    scenarios: Vec<ScenarioOutput>,
     total_wall_s: f64,
 }
 
@@ -97,7 +97,7 @@ async fn main() -> Result<()> {
     };
 
     let overall_started = std::time::Instant::now();
-    let mut all_results = Vec::with_capacity(to_run.len());
+    let mut all_outputs = Vec::with_capacity(to_run.len());
 
     for name in to_run {
         eprintln!("\n=== running scenario: {name:?} ===");
@@ -122,12 +122,12 @@ async fn main() -> Result<()> {
             eprintln!("setup: {:.2}s", setup.as_secs_f64());
 
             let disk_before = ctx.disk_sizes();
-            let mut result = run_scenario(name, setup, &mut ctx).await?;
-            result.disk_before = Some(disk_before);
-            result.disk_after = Some(ctx.disk_sizes());
-            result.bedrock_finality = Some(measure_bedrock_finality(&ctx).await?);
-            harness::print_table(&result);
-            all_results.push(result);
+            let mut output = run_scenario(name, setup, &mut ctx).await?;
+            output.disk_before = Some(disk_before);
+            output.disk_after = Some(ctx.disk_sizes());
+            output.bedrock_finality = Some(measure_bedrock_finality(&ctx).await?);
+            harness::print_table(&output);
+            all_outputs.push(output);
 
             // ctx and bedrock drop here at end of scope, killing the bedrock child
             // before we sleep so the next iteration can rebind the port.
@@ -141,7 +141,7 @@ async fn main() -> Result<()> {
 
     let report = BenchRunReport {
         risc0_dev_mode,
-        scenarios: all_results,
+        scenarios: all_outputs,
         total_wall_s,
     };
 
@@ -170,8 +170,8 @@ async fn run_scenario(
     name: ScenarioName,
     setup: Duration,
     ctx: &mut BenchContext,
-) -> Result<ScenarioResult> {
-    let result = match name {
+) -> Result<ScenarioOutput> {
+    let output = match name {
         ScenarioName::Token => scenarios::token::run(ctx).await?,
         ScenarioName::Amm => scenarios::amm::run(ctx).await?,
         ScenarioName::Fanout => scenarios::fanout::run(ctx).await?,
@@ -179,7 +179,7 @@ async fn run_scenario(
         ScenarioName::Parallel => scenarios::parallel::run(ctx).await?,
         ScenarioName::All => unreachable!("dispatched above"),
     };
-    Ok(ScenarioResult { setup, ..result })
+    Ok(ScenarioOutput { setup, ..output })
 }
 
 /// Poll the indexer's L1-finalised block id until it catches up with the

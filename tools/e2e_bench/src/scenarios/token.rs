@@ -10,14 +10,14 @@ use wallet::cli::{
     programs::token::TokenProgramAgnosticSubcommand,
 };
 
-use crate::harness::{ScenarioResult, finalize_step};
+use crate::harness::{ScenarioOutput, finalize_step};
 
-pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<ScenarioResult> {
-    let mut result = ScenarioResult::new("token_onboarding");
+pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<ScenarioOutput> {
+    let mut output = ScenarioOutput::new("token_onboarding");
 
-    let definition_id = new_public_account(ctx, &mut result, "create_pub_definition").await?;
-    let supply_id = new_public_account(ctx, &mut result, "create_pub_supply").await?;
-    let recipient_id = new_public_account(ctx, &mut result, "create_pub_recipient").await?;
+    let definition_id = new_public_account(ctx, &mut output, "create_pub_definition").await?;
+    let supply_id = new_public_account(ctx, &mut output, "create_pub_supply").await?;
+    let recipient_id = new_public_account(ctx, &mut output, "create_pub_recipient").await?;
 
     {
         let pre_block = crate::harness::begin_step(ctx).await?;
@@ -33,7 +33,7 @@ pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<Scenari
         )
         .await?;
         let step = finalize_step("token_new_fungible", started, pre_block, &ret, ctx).await?;
-        result.push(step);
+        output.push(step);
     }
 
     {
@@ -52,11 +52,11 @@ pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<Scenari
         )
         .await?;
         let step = finalize_step("token_public_transfer", started, pre_block, &ret, ctx).await?;
-        result.push(step);
+        output.push(step);
     }
 
     let private_recipient_id =
-        new_private_account(ctx, &mut result, "create_priv_recipient").await?;
+        new_private_account(ctx, &mut output, "create_priv_recipient").await?;
 
     {
         let pre_block = crate::harness::begin_step(ctx).await?;
@@ -74,15 +74,15 @@ pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<Scenari
         )
         .await?;
         let step = finalize_step("token_shielded_transfer", started, pre_block, &ret, ctx).await?;
-        result.push(step);
+        output.push(step);
     }
 
-    Ok(result)
+    Ok(output)
 }
 
 async fn new_public_account(
     ctx: &mut crate::bench_context::BenchContext,
-    result: &mut ScenarioResult,
+    output: &mut ScenarioOutput,
     label: &str,
 ) -> Result<nssa::AccountId> {
     let pre_block = crate::harness::begin_step(ctx).await?;
@@ -96,7 +96,7 @@ async fn new_public_account(
     )
     .await?;
     let step = finalize_step(label, started, pre_block, &ret, ctx).await?;
-    result.push(step);
+    output.push(step);
     match ret {
         SubcommandReturnValue::RegisterAccount { account_id } => Ok(account_id),
         other => bail!("expected RegisterAccount, got {other:?}"),
@@ -105,7 +105,7 @@ async fn new_public_account(
 
 async fn new_private_account(
     ctx: &mut crate::bench_context::BenchContext,
-    result: &mut ScenarioResult,
+    output: &mut ScenarioOutput,
     label: &str,
 ) -> Result<nssa::AccountId> {
     let pre_block = crate::harness::begin_step(ctx).await?;
@@ -119,7 +119,7 @@ async fn new_private_account(
     )
     .await?;
     let step = finalize_step(label, started, pre_block, &ret, ctx).await?;
-    result.push(step);
+    output.push(step);
     match ret {
         SubcommandReturnValue::RegisterAccount { account_id } => Ok(account_id),
         other => bail!("expected RegisterAccount, got {other:?}"),

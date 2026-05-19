@@ -17,27 +17,27 @@ use wallet::cli::{
 
 use crate::{
     bench_context::BenchContext,
-    harness::{BlockSize, ScenarioResult, StepResult, finalize_step},
+    harness::{BlockSize, ScenarioOutput, StepResult, finalize_step},
 };
 
 const PARALLEL_FANOUT_N: usize = 10;
 const AMOUNT_PER_TRANSFER: u128 = 100;
 
-pub async fn run(ctx: &mut BenchContext) -> Result<ScenarioResult> {
-    let mut result = ScenarioResult::new("parallel_fanout");
+pub async fn run(ctx: &mut BenchContext) -> Result<ScenarioOutput> {
+    let mut output = ScenarioOutput::new("parallel_fanout");
 
     // Setup: definition, master supply, N parallel supplies, N recipients.
-    let def_id = new_public_account(ctx, &mut result, "create_acc_def").await?;
-    let master_id = new_public_account(ctx, &mut result, "create_acc_master").await?;
+    let def_id = new_public_account(ctx, &mut output, "create_acc_def").await?;
+    let master_id = new_public_account(ctx, &mut output, "create_acc_master").await?;
 
     let mut senders = Vec::with_capacity(PARALLEL_FANOUT_N);
     for i in 0..PARALLEL_FANOUT_N {
-        let id = new_public_account(ctx, &mut result, &format!("create_sender_{i:02}")).await?;
+        let id = new_public_account(ctx, &mut output, &format!("create_sender_{i:02}")).await?;
         senders.push(id);
     }
     let mut recipients = Vec::with_capacity(PARALLEL_FANOUT_N);
     for i in 0..PARALLEL_FANOUT_N {
-        let id = new_public_account(ctx, &mut result, &format!("create_recipient_{i:02}")).await?;
+        let id = new_public_account(ctx, &mut output, &format!("create_recipient_{i:02}")).await?;
         recipients.push(id);
     }
 
@@ -60,7 +60,7 @@ pub async fn run(ctx: &mut BenchContext) -> Result<ScenarioResult> {
         )
         .await?;
         let step = finalize_step("token_new_fungible", started, pre_block, &ret, ctx).await?;
-        result.push(step);
+        output.push(step);
     }
 
     // Fund each sender from master. Serial; this is setup, not measured throughput.
@@ -81,7 +81,7 @@ pub async fn run(ctx: &mut BenchContext) -> Result<ScenarioResult> {
         .await?;
         let step =
             finalize_step(format!("fund_sender_{i:02}"), started, pre_block, &ret, ctx).await?;
-        result.push(step);
+        output.push(step);
     }
 
     // The measured phase: submit N transfers as fast as possible, do not wait
@@ -162,14 +162,14 @@ pub async fn run(ctx: &mut BenchContext) -> Result<ScenarioResult> {
         tx_hash: None,
         blocks,
     };
-    result.push(burst_step);
+    output.push(burst_step);
 
-    Ok(result)
+    Ok(output)
 }
 
 async fn new_public_account(
     ctx: &mut BenchContext,
-    result: &mut ScenarioResult,
+    output: &mut ScenarioOutput,
     label: &str,
 ) -> Result<nssa::AccountId> {
     let pre_block = crate::harness::begin_step(ctx).await?;
@@ -183,7 +183,7 @@ async fn new_public_account(
     )
     .await?;
     let step = finalize_step(label, started, pre_block, &ret, ctx).await?;
-    result.push(step);
+    output.push(step);
     match ret {
         SubcommandReturnValue::RegisterAccount { account_id } => Ok(account_id),
         other => bail!("expected RegisterAccount, got {other:?}"),

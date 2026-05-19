@@ -10,16 +10,16 @@ use wallet::cli::{
     programs::token::TokenProgramAgnosticSubcommand,
 };
 
-use crate::harness::{ScenarioResult, finalize_step};
+use crate::harness::{ScenarioOutput, finalize_step};
 
 const FANOUT_COUNT: usize = 10;
 const AMOUNT_PER_TRANSFER: u128 = 100;
 
-pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<ScenarioResult> {
-    let mut result = ScenarioResult::new("multi_recipient_fanout");
+pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<ScenarioOutput> {
+    let mut output = ScenarioOutput::new("multi_recipient_fanout");
 
-    let def_id = new_public_account(ctx, &mut result, "create_acc_def").await?;
-    let supply_id = new_public_account(ctx, &mut result, "create_acc_supply").await?;
+    let def_id = new_public_account(ctx, &mut output, "create_acc_def").await?;
+    let supply_id = new_public_account(ctx, &mut output, "create_acc_supply").await?;
 
     {
         let pre_block = crate::harness::begin_step(ctx).await?;
@@ -35,12 +35,12 @@ pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<Scenari
         )
         .await?;
         let step = finalize_step("token_new_fungible", started, pre_block, &ret, ctx).await?;
-        result.push(step);
+        output.push(step);
     }
 
     let mut recipients = Vec::with_capacity(FANOUT_COUNT);
     for i in 0..FANOUT_COUNT {
-        let id = new_public_account(ctx, &mut result, &format!("create_recipient_{i:02}")).await?;
+        let id = new_public_account(ctx, &mut output, &format!("create_recipient_{i:02}")).await?;
         recipients.push(id);
     }
 
@@ -60,15 +60,15 @@ pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<Scenari
         )
         .await?;
         let step = finalize_step(format!("transfer_{i:02}"), started, pre_block, &ret, ctx).await?;
-        result.push(step);
+        output.push(step);
     }
 
-    Ok(result)
+    Ok(output)
 }
 
 async fn new_public_account(
     ctx: &mut crate::bench_context::BenchContext,
-    result: &mut ScenarioResult,
+    output: &mut ScenarioOutput,
     label: &str,
 ) -> Result<nssa::AccountId> {
     let pre_block = crate::harness::begin_step(ctx).await?;
@@ -82,7 +82,7 @@ async fn new_public_account(
     )
     .await?;
     let step = finalize_step(label, started, pre_block, &ret, ctx).await?;
-    result.push(step);
+    output.push(step);
     match ret {
         SubcommandReturnValue::RegisterAccount { account_id } => Ok(account_id),
         other => bail!("expected RegisterAccount, got {other:?}"),
