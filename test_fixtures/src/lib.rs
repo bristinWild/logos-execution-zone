@@ -1,9 +1,5 @@
 //! Shared test/bench fixtures: spins up bedrock + sequencer + indexer + wallet
 //! end-to-end against docker-compose, exposes a `TestContext` callers can drive.
-//!
-//! Originally lived under `integration_tests`; split out so non-test consumers
-//! (e.g. `integration_bench`) can depend on the fixtures without pulling in the
-//! `integration_tests` test files.
 
 use std::{net::SocketAddr, path::Path, sync::LazyLock};
 
