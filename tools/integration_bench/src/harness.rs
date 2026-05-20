@@ -61,7 +61,10 @@ pub struct ScenarioOutput {
     /// reporting the sequencer tip as L1-finalised. Effectively measures the
     /// sequencer→Bedrock posting + Bedrock finalisation + indexer L1 ingest path.
     /// A value at the timeout (60s) means finalisation did not happen within the bench window.
-    #[serde(serialize_with = "ser_opt_duration_secs", rename = "bedrock_finality_s")]
+    #[serde(
+        serialize_with = "ser_opt_duration_secs",
+        rename = "bedrock_finality_s"
+    )]
     pub bedrock_finality: Option<Duration>,
 }
 

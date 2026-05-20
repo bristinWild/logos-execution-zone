@@ -24,10 +24,26 @@ pub async fn run(ctx: &mut TestContext) -> Result<ScenarioOutput> {
     let user_lp = new_public_account(ctx, &mut output, "create_acc_user_lp").await?;
 
     timed_token_new(ctx, &mut output, "token_a_new", def_a, supply_a, "TokA").await?;
-    timed_token_send(ctx, &mut output, "token_a_fund_user", supply_a, user_a, 1_000).await?;
+    timed_token_send(
+        ctx,
+        &mut output,
+        "token_a_fund_user",
+        supply_a,
+        user_a,
+        1_000,
+    )
+    .await?;
 
     timed_token_new(ctx, &mut output, "token_b_new", def_b, supply_b, "TokB").await?;
-    timed_token_send(ctx, &mut output, "token_b_fund_user", supply_b, user_b, 1_000).await?;
+    timed_token_send(
+        ctx,
+        &mut output,
+        "token_b_fund_user",
+        supply_b,
+        user_b,
+        1_000,
+    )
+    .await?;
 
     output
         .step(ctx, "amm_new_pool", async |ctx| {
