@@ -15,7 +15,7 @@ use std::{env, net::SocketAddr, path::Path};
 
 use anyhow::{Context as _, Result};
 use indexer_service::IndexerHandle;
-use integration_tests::config::{
+use test_fixtures::config::{
     SequencerPartialConfig, UrlProtocol, addr_to_url, default_private_accounts_for_wallet,
     default_public_accounts_for_wallet, genesis_from_accounts, indexer_config, sequencer_config,
     wallet_config,

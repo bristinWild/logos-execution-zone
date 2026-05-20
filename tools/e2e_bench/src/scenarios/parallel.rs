@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use anyhow::{Result, bail};
 use common::transaction::NSSATransaction;
-use integration_tests::public_mention;
+use test_fixtures::public_mention;
 use sequencer_service_rpc::RpcClient as _;
 use wallet::cli::{
     Command, SubcommandReturnValue,

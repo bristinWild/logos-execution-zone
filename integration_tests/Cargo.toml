@@ -8,6 +8,8 @@ license = { workspace = true }
 workspace = true
 
 [dependencies]
+test_fixtures.workspace = true
+
 nssa_core = { workspace = true, features = ["host"] }
 nssa.workspace = true
 authenticated_transfer_core.workspace = true

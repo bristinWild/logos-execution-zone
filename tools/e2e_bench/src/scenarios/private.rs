@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use anyhow::{Result, bail};
-use integration_tests::{private_mention, public_mention};
+use test_fixtures::{private_mention, public_mention};
 use wallet::cli::{
     Command, SubcommandReturnValue,
     account::{AccountSubcommand, NewSubcommand},

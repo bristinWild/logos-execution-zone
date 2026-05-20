@@ -2389,7 +2389,6 @@ dependencies = [
  "common",
  "indexer_service",
  "indexer_service_rpc",
- "integration_tests",
  "jsonrpsee",
  "nssa",
  "sequencer_service",
@@ -2397,6 +2396,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "test_fixtures",
  "tokio",
  "wallet",
 ]
@@ -4016,6 +4016,7 @@ dependencies = [
  "sequencer_service_rpc",
  "serde_json",
  "tempfile",
+ "test_fixtures",
  "testcontainers",
  "token_core",
  "tokio",
@@ -9219,6 +9220,34 @@ dependencies = [
  "quote",
  "syn 2.0.117",
  "test-case-core",
+]
+
+[[package]]
+name = "test_fixtures"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytesize",
+ "common",
+ "env_logger",
+ "futures",
+ "indexer_service",
+ "jsonrpsee",
+ "key_protocol",
+ "log",
+ "nssa",
+ "nssa_core",
+ "sequencer_core",
+ "sequencer_service",
+ "sequencer_service_rpc",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "testcontainers",
+ "tokio",
+ "url",
+ "vault_core",
+ "wallet",
 ]
 
 [[package]]

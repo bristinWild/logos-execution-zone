@@ -41,6 +41,7 @@ members = [
   "examples/program_deployment/methods/guest",
   "testnet_initial_state",
   "indexer/ffi",
+  "test_fixtures",
   "tools/cycle_bench",
   "tools/crypto_primitives_bench",
   "tools/e2e_bench",
@@ -77,6 +78,7 @@ vault_core = { path = "programs/vault/core" }
 test_program_methods = { path = "test_program_methods" }
 testnet_initial_state = { path = "testnet_initial_state" }
 integration_tests = { path = "integration_tests" }
+test_fixtures = { path = "test_fixtures" }
 
 tokio = { version = "1.50", features = [
   "net",
