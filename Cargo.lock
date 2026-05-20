@@ -3967,6 +3967,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "integration_bench"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "clap",
+ "common",
+ "indexer_service_rpc",
+ "jsonrpsee",
+ "nssa",
+ "sequencer_service_rpc",
+ "serde",
+ "serde_json",
+ "test_fixtures",
+ "tokio",
+ "wallet",
+]
+
+[[package]]
 name = "integration_tests"
 version = "0.1.0"
 dependencies = [
@@ -3975,28 +3994,22 @@ dependencies = [
  "authenticated_transfer_core",
  "bytesize",
  "common",
- "env_logger",
  "faucet_core",
- "futures",
  "hex",
  "indexer_ffi",
- "indexer_service",
  "indexer_service_protocol",
  "indexer_service_rpc",
- "jsonrpsee",
  "key_protocol",
  "log",
  "nssa",
  "nssa_core",
  "sequencer_core",
- "sequencer_service",
  "sequencer_service_rpc",
  "serde_json",
  "tempfile",
- "testcontainers",
+ "test_fixtures",
  "token_core",
  "tokio",
- "url",
  "vault_core",
  "wallet",
  "wallet-ffi",
@@ -9196,6 +9209,34 @@ dependencies = [
  "quote",
  "syn 2.0.117",
  "test-case-core",
+]
+
+[[package]]
+name = "test_fixtures"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytesize",
+ "common",
+ "env_logger",
+ "futures",
+ "indexer_service",
+ "jsonrpsee",
+ "key_protocol",
+ "log",
+ "nssa",
+ "nssa_core",
+ "sequencer_core",
+ "sequencer_service",
+ "sequencer_service_rpc",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "testcontainers",
+ "tokio",
+ "url",
+ "vault_core",
+ "wallet",
 ]
 
 [[package]]
