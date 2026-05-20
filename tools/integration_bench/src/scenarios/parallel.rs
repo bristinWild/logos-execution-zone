@@ -15,7 +15,7 @@ use wallet::cli::{
     programs::token::TokenProgramAgnosticSubcommand,
 };
 
-use crate::harness::{BlockSize, ScenarioOutput, StepResult, finalize_step};
+use crate::harness::{BlockSize, ScenarioOutput, StepResult};
 
 const PARALLEL_FANOUT_N: usize = 10;
 const AMOUNT_PER_TRANSFER: u128 = 100;
@@ -43,47 +43,47 @@ pub async fn run(ctx: &mut TestContext) -> Result<ScenarioOutput> {
         .expect("usize fits u128")
         .saturating_mul(AMOUNT_PER_TRANSFER)
         .saturating_mul(10);
-    {
-        let pre_block = crate::harness::begin_step(ctx).await?;
-        let started = Instant::now();
-        let ret = wallet::cli::execute_subcommand(
-            ctx.wallet_mut(),
-            Command::Token(TokenProgramAgnosticSubcommand::New {
-                definition_account_id: public_mention(def_id),
-                supply_account_id: public_mention(master_id),
-                name: "ParToken".to_owned(),
-                total_supply: total_mint,
-            }),
-        )
+    output
+        .step(ctx, "token_new_fungible", async |ctx| {
+            wallet::cli::execute_subcommand(
+                ctx.wallet_mut(),
+                Command::Token(TokenProgramAgnosticSubcommand::New {
+                    definition_account_id: public_mention(def_id),
+                    supply_account_id: public_mention(master_id),
+                    name: "ParToken".to_owned(),
+                    total_supply: total_mint,
+                }),
+            )
+            .await
+        })
         .await?;
-        let step = finalize_step("token_new_fungible", started, pre_block, &ret, ctx).await?;
-        output.push(step);
-    }
 
     // Fund each sender from master. Serial; this is setup, not measured throughput.
-    for (i, sender_id) in senders.iter().enumerate() {
-        let pre_block = crate::harness::begin_step(ctx).await?;
-        let started = Instant::now();
-        let ret = wallet::cli::execute_subcommand(
-            ctx.wallet_mut(),
-            Command::Token(TokenProgramAgnosticSubcommand::Send {
-                from: public_mention(master_id),
-                to: Some(public_mention(*sender_id)),
-                to_npk: None,
-                to_vpk: None,
-                to_identifier: Some(0),
-                amount: AMOUNT_PER_TRANSFER * 5,
-            }),
-        )
-        .await?;
-        let step =
-            finalize_step(format!("fund_sender_{i:02}"), started, pre_block, &ret, ctx).await?;
-        output.push(step);
+    for (i, sender_id) in senders.iter().copied().enumerate() {
+        output
+            .step(ctx, format!("fund_sender_{i:02}"), async |ctx| {
+                wallet::cli::execute_subcommand(
+                    ctx.wallet_mut(),
+                    Command::Token(TokenProgramAgnosticSubcommand::Send {
+                        from: public_mention(master_id),
+                        to: Some(public_mention(sender_id)),
+                        to_npk: None,
+                        to_vpk: None,
+                        to_identifier: Some(0),
+                        amount: AMOUNT_PER_TRANSFER * 5,
+                    }),
+                )
+                .await
+            })
+            .await?;
     }
 
     // The measured phase: submit N transfers as fast as possible, do not wait
     // for chain advance between submits. The sequencer batches whatever lands in
-    // its mempool before block_create_timeout.
+    // its mempool before block_create_timeout. The burst step is captured
+    // manually rather than via the `step()` helper because we need to time
+    // submit-and-inclusion as two separate intervals over a synthesised batch
+    // rather than per-tx.
     let pre_block_burst = ctx.sequencer_client().get_last_block_id().await?;
     let burst_started = Instant::now();
 
@@ -169,18 +169,18 @@ async fn new_public_account(
     output: &mut ScenarioOutput,
     label: &str,
 ) -> Result<nssa::AccountId> {
-    let pre_block = crate::harness::begin_step(ctx).await?;
-    let started = Instant::now();
-    let ret = wallet::cli::execute_subcommand(
-        ctx.wallet_mut(),
-        Command::Account(AccountSubcommand::New(NewSubcommand::Public {
-            cci: None,
-            label: None,
-        })),
-    )
-    .await?;
-    let step = finalize_step(label, started, pre_block, &ret, ctx).await?;
-    output.push(step);
+    let ret = output
+        .step(ctx, label, async |ctx| {
+            wallet::cli::execute_subcommand(
+                ctx.wallet_mut(),
+                Command::Account(AccountSubcommand::New(NewSubcommand::Public {
+                    cci: None,
+                    label: None,
+                })),
+            )
+            .await
+        })
+        .await?;
     match ret {
         SubcommandReturnValue::RegisterAccount { account_id } => Ok(account_id),
         other => bail!("expected RegisterAccount, got {other:?}"),

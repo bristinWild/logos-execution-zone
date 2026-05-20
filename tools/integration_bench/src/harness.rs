@@ -77,12 +77,29 @@ impl ScenarioOutput {
         self.total = self.total.saturating_add(step.total);
         self.steps.push(step);
     }
+
+    /// Run a single timed step against `ctx`: capture pre-block, run `submit`,
+    /// finalize timings, push a `StepResult` onto `self.steps`. Returns the
+    /// `SubcommandReturnValue` from `submit` so the caller can match on it.
+    pub async fn step(
+        &mut self,
+        ctx: &mut TestContext,
+        label: impl Into<String>,
+        submit: impl AsyncFnOnce(&mut TestContext) -> Result<SubcommandReturnValue>,
+    ) -> Result<SubcommandReturnValue> {
+        let pre_block = begin_step(ctx).await?;
+        let started = Instant::now();
+        let ret = submit(ctx).await?;
+        let step = finalize_step(label, started, pre_block, &ret, ctx).await?;
+        self.push(step);
+        Ok(ret)
+    }
 }
 
 /// Begin a timed step. Capture this *before* submitting the wallet operation
 /// so we can later subtract it from the post-submit block height to detect
 /// when the chain has advanced past the tx's block.
-pub async fn begin_step(ctx: &TestContext) -> Result<u64> {
+async fn begin_step(ctx: &TestContext) -> Result<u64> {
     Ok(ctx.sequencer_client().get_last_block_id().await?)
 }
 
@@ -90,14 +107,7 @@ pub async fn begin_step(ctx: &TestContext) -> Result<u64> {
 /// being captured and `ret` being received) and, if `ret` is a
 /// [`SubcommandReturnValue::PrivacyPreservingTransfer`], polls the sequencer
 /// for inclusion and records the inclusion latency. Returns a [`StepResult`].
-///
-/// Usage:
-/// ```ignore
-/// let started = Instant::now();
-/// let ret = wallet::cli::execute_subcommand(ctx.wallet_mut(), cmd).await?;
-/// let step = finalize_step("label", started, pre_block_id, &ret, ctx).await?;
-/// ```
-pub async fn finalize_step(
+async fn finalize_step(
     label: impl Into<String>,
     started: Instant,
     pre_block_id: u64,

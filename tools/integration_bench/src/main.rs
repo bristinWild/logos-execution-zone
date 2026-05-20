@@ -22,10 +22,12 @@
     clippy::arithmetic_side_effects,
     clippy::print_stderr,
     clippy::print_stdout,
+    clippy::shadow_unrelated,
     clippy::wildcard_enum_match_arm,
     reason = "Bench tool: stderr/stdout output is the deliverable; small Duration / iterator-sum \
               arithmetic is safe at bench scale; bench scenarios bail loudly on any unexpected \
-              return variant, which is preferable to maintaining an exhaustive list in five files."
+              return variant, which is preferable to maintaining an exhaustive list in five files; \
+              the step() closure helper canonically rebinds `ctx` inside the closure body."
 )]
 
 use std::{path::PathBuf, time::Duration};
