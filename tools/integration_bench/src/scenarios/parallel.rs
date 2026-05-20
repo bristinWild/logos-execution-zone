@@ -7,23 +7,20 @@ use std::time::Instant;
 
 use anyhow::{Result, bail};
 use common::transaction::NSSATransaction;
-use test_fixtures::public_mention;
 use sequencer_service_rpc::RpcClient as _;
+use test_fixtures::{TestContext, public_mention};
 use wallet::cli::{
     Command, SubcommandReturnValue,
     account::{AccountSubcommand, NewSubcommand},
     programs::token::TokenProgramAgnosticSubcommand,
 };
 
-use crate::{
-    bench_context::BenchContext,
-    harness::{BlockSize, ScenarioOutput, StepResult, finalize_step},
-};
+use crate::harness::{BlockSize, ScenarioOutput, StepResult, finalize_step};
 
 const PARALLEL_FANOUT_N: usize = 10;
 const AMOUNT_PER_TRANSFER: u128 = 100;
 
-pub async fn run(ctx: &mut BenchContext) -> Result<ScenarioOutput> {
+pub async fn run(ctx: &mut TestContext) -> Result<ScenarioOutput> {
     let mut output = ScenarioOutput::new("parallel_fanout");
 
     // Setup: definition, master supply, N parallel supplies, N recipients.
@@ -168,7 +165,7 @@ pub async fn run(ctx: &mut BenchContext) -> Result<ScenarioOutput> {
 }
 
 async fn new_public_account(
-    ctx: &mut BenchContext,
+    ctx: &mut TestContext,
     output: &mut ScenarioOutput,
     label: &str,
 ) -> Result<nssa::AccountId> {

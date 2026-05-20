@@ -1,6 +1,6 @@
-# e2e_bench
+# integration_bench
 
-End-to-end LEZ scenarios driven through the wallet against an in-process sequencer + indexer wired to an external Bedrock node. Times each step and records borsh sizes per block, split by tx variant.
+End-to-end LEZ scenarios driven through the wallet against a docker-compose Bedrock node + in-process sequencer + indexer (via `test_fixtures::TestContext`). Times each step and records borsh sizes per block, split by tx variant.
 
 No numeric tables here yet. Absolute wall time and block sizes depend heavily on the bedrock config (block cadence and confirmation depth) and on dev-mode vs real proving; re-run the bench locally to get numbers for your own setup. Canonical numbers will be added once the bench runs against the standard configuration.
 
@@ -31,30 +31,29 @@ Numbers are intentionally omitted in this document until the canonical run lands
 
 ## Methodology
 
-Per scenario, every produced block is fetched via `getBlock(BlockId)` and serialized with `borsh::to_vec(&Block)`. Each transaction is serialized individually and counted by variant. Empty clock-only ticks give the per-block fixed-cost baseline. Wall time is captured per step (submit + inclusion + wallet sync) and per scenario (setup + steps + closing bedrock finality wait).
+Per scenario, every produced block is fetched via `getBlock(BlockId)` and serialized with `borsh::to_vec(&Block)`. Each transaction is serialized individually and counted by variant. Empty clock-only ticks give the per-block fixed-cost baseline. Wall time is captured per step (submit + inclusion + wallet sync) and aggregated to the per-scenario `total_s`. The one-time stack-setup cost (`shared_setup_s` at the run level) and the closing bedrock finality wait (`bedrock_finality_s` per scenario) are reported separately, not folded into `total_s`.
 
 ## Reproduce
 
+Prerequisite: a running local Docker daemon (the `bedrock/docker-compose.yml` is brought up by the bench).
+
 ```sh
-export LEZ_BEDROCK_BIN=/path/to/logos-blockchain/target/release/logos-blockchain-node
-export LEZ_BEDROCK_CONFIG_DIR=/path/to/bedrock/configs
+# Dev-mode sweep (fast)
+RISC0_DEV_MODE=1 cargo run --release -p integration_bench -- --scenario all
 
-# Dev-mode sweep (fast, ~16 min for all five scenarios)
-RISC0_DEV_MODE=1 cargo run --release -p e2e_bench -- --scenario all
+# Real-proving for representative private flow
+cargo run --release -p integration_bench -- --scenario private
 
-# Real-proving for representative private flow (~6 min on M2 Pro CPU)
-cargo run --release -p e2e_bench -- --scenario private
-
-# Real-proving for representative public flow (~3 min)
-cargo run --release -p e2e_bench -- --scenario amm
+# Real-proving for representative public flow
+cargo run --release -p integration_bench -- --scenario amm
 ```
 
-JSON output: `target/e2e_bench_dev.json` / `target/e2e_bench_prove.json` (suffix toggled by `RISC0_DEV_MODE`).
+JSON output: `target/integration_bench_dev.json` / `target/integration_bench_prove.json` (suffix toggled by `RISC0_DEV_MODE`).
 
 ## Caveats
 
 - Dev-mode `ppe_tx_bytes` and PPE-step latencies are not representative of production; use real-proving numbers for any fee-model input that touches the storage or prover-cost components.
 - Single-host run, no GPU acceleration. Real-proving on production prover hardware will move per-step latencies by orders of magnitude; byte counts will not change.
-- Bedrock running locally; no real network latency between sequencer and Bedrock.
-- Bedrock L1 finality (`bedrock_finality_s`) is set by the bedrock config in `LEZ_BEDROCK_CONFIG_DIR` (block cadence × confirmation depth). Different configs will shift `bedrock_finality_s` materially.
-- Some scenarios share account state via the same wallet; this is intentional (mirrors `integration_tests::TestContext`) and not a realistic multi-wallet workload.
+- Bedrock running locally via docker-compose; no real network latency between sequencer and Bedrock.
+- Bedrock L1 finality (`bedrock_finality_s`) is set by the bedrock config in `bedrock/docker-compose.yml` (block cadence × confirmation depth). Different configs will shift `bedrock_finality_s` materially.
+- All scenarios share a single TestContext for the run (one bedrock + sequencer + indexer + wallet for the whole run, chain state accumulating across scenarios), which matches how the node runs in production.

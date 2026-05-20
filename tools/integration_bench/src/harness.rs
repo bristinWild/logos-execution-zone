@@ -11,9 +11,8 @@ use anyhow::{Result, bail};
 use common::transaction::NSSATransaction;
 use sequencer_service_rpc::RpcClient as _;
 use serde::{Serialize, Serializer};
+use test_fixtures::{DiskSizes, TestContext};
 use wallet::cli::SubcommandReturnValue;
-
-use crate::bench_context::BenchContext;
 
 const TX_INCLUSION_POLL_INTERVAL: Duration = Duration::from_millis(250);
 const TX_INCLUSION_TIMEOUT: Duration = Duration::from_secs(120);
@@ -51,15 +50,13 @@ pub struct StepResult {
 #[derive(Debug, Serialize, Default)]
 pub struct ScenarioOutput {
     pub name: String,
-    #[serde(serialize_with = "ser_duration_secs", rename = "setup_s")]
-    pub setup: Duration,
     pub steps: Vec<StepResult>,
     #[serde(serialize_with = "ser_duration_secs", rename = "total_s")]
     pub total: Duration,
     /// Disk sizes (sequencer / indexer / wallet tempdirs) sampled at scenario start.
-    pub disk_before: Option<crate::bench_context::DiskSizes>,
+    pub disk_before: Option<DiskSizes>,
     /// Disk sizes sampled at scenario end.
-    pub disk_after: Option<crate::bench_context::DiskSizes>,
+    pub disk_after: Option<DiskSizes>,
     /// Bedrock-finality latency: time from final-step inclusion to the indexer
     /// reporting the sequencer tip as L1-finalised. Effectively measures the
     /// sequencer→Bedrock posting + Bedrock finalisation + indexer L1 ingest path.
@@ -85,7 +82,7 @@ impl ScenarioOutput {
 /// Begin a timed step. Capture this *before* submitting the wallet operation
 /// so we can later subtract it from the post-submit block height to detect
 /// when the chain has advanced past the tx's block.
-pub async fn begin_step(ctx: &BenchContext) -> Result<u64> {
+pub async fn begin_step(ctx: &TestContext) -> Result<u64> {
     Ok(ctx.sequencer_client().get_last_block_id().await?)
 }
 
@@ -105,7 +102,7 @@ pub async fn finalize_step(
     started: Instant,
     pre_block_id: u64,
     ret: &SubcommandReturnValue,
-    ctx: &mut BenchContext,
+    ctx: &mut TestContext,
 ) -> Result<StepResult> {
     let label = label.into();
     let submit = started.elapsed();
@@ -174,7 +171,7 @@ pub async fn finalize_step(
 
 /// Wait for `get_last_block_id` to advance by at least `min_blocks` from `from_block_id`.
 pub async fn wait_for_chain_advance(
-    ctx: &BenchContext,
+    ctx: &TestContext,
     from_block_id: u64,
     min_blocks: u64,
 ) -> Result<()> {
@@ -197,7 +194,7 @@ pub async fn wait_for_chain_advance(
     }
 }
 
-async fn sync_wallet_to_tip(ctx: &mut BenchContext) -> Result<()> {
+async fn sync_wallet_to_tip(ctx: &mut TestContext) -> Result<()> {
     let last_block = ctx.sequencer_client().get_last_block_id().await?;
     ctx.wallet_mut().sync_to_block(last_block).await?;
     Ok(())
@@ -213,9 +210,8 @@ pub fn print_table(output: &ScenarioOutput) {
         .max("step".len());
 
     println!(
-        "\nScenario: {} (setup {:.2}s, total {:.2}s)",
+        "\nScenario: {} (total {:.2}s)",
         output.name,
-        output.setup.as_secs_f64(),
         output.total.as_secs_f64(),
     );
     println!(

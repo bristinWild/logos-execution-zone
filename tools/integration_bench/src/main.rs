@@ -1,18 +1,18 @@
 //! End-to-end LEZ scenario bench.
 //!
-//! Spins up the full stack (native Bedrock node launched per-scenario via
-//! `BedrockHandle` + in-process sequencer + indexer + wallet via
-//! `BenchContext`) and drives the wallet through configurable scenarios that
-//! mirror real user flows. Times each step and records borsh-serialized
-//! block + tx sizes per scenario.
+//! Spins up the full stack via `test_fixtures::TestContext` (docker-compose
+//! Bedrock + in-process sequencer + indexer + wallet) once for the whole run,
+//! then drives the wallet through each requested scenario against that single
+//! shared stack. Times each step and records borsh-serialized block + tx sizes
+//! per scenario.
 //!
-//! Required env vars (no defaults; see `tools/e2e_bench/README.md`):
-//!   `LEZ_BEDROCK_BIN`          absolute path to logos-blockchain-node.
-//!   `LEZ_BEDROCK_CONFIG_DIR`   directory with node-config.yaml + deployment template.
+//! Prerequisite: a working local Docker daemon. The Bedrock service is brought
+//! up via the same `bedrock/docker-compose.yml` the integration tests use, so
+//! no host-side binary or env vars are required.
 //!
 //! Run examples:
-//!   `RISC0_DEV_MODE=1` `cargo run --release -p e2e_bench -- --scenario all`.
-//!   `cargo run --release -p e2e_bench -- --scenario amm`.
+//!   `RISC0_DEV_MODE=1 cargo run --release -p integration_bench -- --scenario all`.
+//!   `cargo run --release -p integration_bench -- --scenario amm`.
 //!
 //! `RISC0_DEV_MODE=1` skips proving and produces latency-only numbers in
 //! ~minutes; omitting it produces realistic proving-inclusive numbers but
@@ -31,14 +31,11 @@
 use std::{path::PathBuf, time::Duration};
 
 use anyhow::{Context as _, Result};
-use bedrock_handle::BedrockHandle;
-use bench_context::BenchContext;
 use clap::{Parser, ValueEnum};
 use harness::ScenarioOutput;
 use serde::Serialize;
+use test_fixtures::TestContext;
 
-mod bedrock_handle;
-mod bench_context;
 mod harness;
 mod scenarios;
 
@@ -59,7 +56,7 @@ struct Cli {
     #[arg(long, value_enum, default_value_t = ScenarioName::All)]
     scenario: ScenarioName,
 
-    /// Optional JSON output path. Defaults to `<workspace>/target/e2e_bench.json`.
+    /// Optional JSON output path. Defaults to `<workspace>/target/integration_bench.json`.
     #[arg(long)]
     json_out: Option<PathBuf>,
 }
@@ -67,20 +64,24 @@ struct Cli {
 #[derive(Debug, Serialize)]
 struct BenchRunReport {
     risc0_dev_mode: bool,
+    /// Time to bring up the shared `TestContext` (docker-compose Bedrock +
+    /// sequencer + indexer + wallet). Paid once per run regardless of how many
+    /// scenarios are exercised.
+    shared_setup_s: f64,
     scenarios: Vec<ScenarioOutput>,
     total_wall_s: f64,
 }
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
-    // integration_tests initializes env_logger via a LazyLock, so we leave logger
+    // test_fixtures initializes env_logger via a LazyLock, so we leave logger
     // setup to it. Set RUST_LOG=info before running to see logs.
 
     let cli = Cli::parse();
     let risc0_dev_mode = std::env::var("RISC0_DEV_MODE").is_ok_and(|v| !v.is_empty() && v != "0");
 
     eprintln!(
-        "e2e_bench: scenario={:?}, RISC0_DEV_MODE={}",
+        "integration_bench: scenario={:?}, RISC0_DEV_MODE={}",
         cli.scenario,
         if risc0_dev_mode { "1" } else { "unset/0" }
     );
@@ -97,43 +98,28 @@ async fn main() -> Result<()> {
     };
 
     let overall_started = std::time::Instant::now();
+
+    // One shared stack for the entire run: docker-compose Bedrock + sequencer +
+    // indexer + wallet. Scenarios share chain state, which matches how the node
+    // runs in production (long-lived, accumulating).
+    let setup_started = std::time::Instant::now();
+    let mut ctx = TestContext::new()
+        .await
+        .context("failed to setup TestContext")?;
+    let shared_setup = setup_started.elapsed();
+    eprintln!("setup: {:.2}s", shared_setup.as_secs_f64());
+
     let mut all_outputs = Vec::with_capacity(to_run.len());
 
     for name in to_run {
         eprintln!("\n=== running scenario: {name:?} ===");
-        {
-            let setup_started = std::time::Instant::now();
-            // Spawn a fresh Bedrock node for this scenario. Each scenario therefore
-            // starts with an empty chain so the indexer never has a backlog from a
-            // prior scenario.
-            let bedrock = BedrockHandle::launch_fresh()
-                .await
-                .with_context(|| format!("failed to spawn Bedrock for scenario {name:?}"))?;
-            let bedrock_addr_string = format!("{}", bedrock.addr());
-            // SAFETY: env::set_var happens before any threaded setup that reads env.
-            unsafe {
-                std::env::set_var("LEZ_BEDROCK_ADDR", &bedrock_addr_string);
-            }
-
-            let mut ctx = BenchContext::new()
-                .await
-                .with_context(|| format!("failed to setup BenchContext for scenario {name:?}"))?;
-            let setup = setup_started.elapsed();
-            eprintln!("setup: {:.2}s", setup.as_secs_f64());
-
-            let disk_before = ctx.disk_sizes();
-            let mut output = run_scenario(name, setup, &mut ctx).await?;
-            output.disk_before = Some(disk_before);
-            output.disk_after = Some(ctx.disk_sizes());
-            output.bedrock_finality = Some(measure_bedrock_finality(&ctx).await?);
-            harness::print_table(&output);
-            all_outputs.push(output);
-
-            // ctx and bedrock drop here at end of scope, killing the bedrock child
-            // before we sleep so the next iteration can rebind the port.
-        }
-        // Give Bedrock a moment to shut down before the next scenario.
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        let disk_before = ctx.disk_sizes();
+        let mut output = run_scenario(name, &mut ctx).await?;
+        output.disk_before = Some(disk_before);
+        output.disk_after = Some(ctx.disk_sizes());
+        output.bedrock_finality = Some(measure_bedrock_finality(&ctx).await?);
+        harness::print_table(&output);
+        all_outputs.push(output);
     }
 
     let total_wall_s = overall_started.elapsed().as_secs_f64();
@@ -141,6 +127,7 @@ async fn main() -> Result<()> {
 
     let report = BenchRunReport {
         risc0_dev_mode,
+        shared_setup_s: shared_setup.as_secs_f64(),
         scenarios: all_outputs,
         total_wall_s,
     };
@@ -155,7 +142,7 @@ async fn main() -> Result<()> {
         let suffix = if risc0_dev_mode { "dev" } else { "prove" };
         workspace_root
             .join("target")
-            .join(format!("e2e_bench_{suffix}.json"))
+            .join(format!("integration_bench_{suffix}.json"))
     };
     if let Some(parent) = out_path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -166,26 +153,21 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn run_scenario(
-    name: ScenarioName,
-    setup: Duration,
-    ctx: &mut BenchContext,
-) -> Result<ScenarioOutput> {
-    let output = match name {
-        ScenarioName::Token => scenarios::token::run(ctx).await?,
-        ScenarioName::Amm => scenarios::amm::run(ctx).await?,
-        ScenarioName::Fanout => scenarios::fanout::run(ctx).await?,
-        ScenarioName::Private => scenarios::private::run(ctx).await?,
-        ScenarioName::Parallel => scenarios::parallel::run(ctx).await?,
+async fn run_scenario(name: ScenarioName, ctx: &mut TestContext) -> Result<ScenarioOutput> {
+    match name {
+        ScenarioName::Token => scenarios::token::run(ctx).await,
+        ScenarioName::Amm => scenarios::amm::run(ctx).await,
+        ScenarioName::Fanout => scenarios::fanout::run(ctx).await,
+        ScenarioName::Private => scenarios::private::run(ctx).await,
+        ScenarioName::Parallel => scenarios::parallel::run(ctx).await,
         ScenarioName::All => unreachable!("dispatched above"),
-    };
-    Ok(ScenarioOutput { setup, ..output })
+    }
 }
 
 /// Poll the indexer's L1-finalised block id until it catches up with the
 /// sequencer's last block id. This is effectively the sequencer→Bedrock posting
 /// plus Bedrock finalisation plus indexer ingest latency.
-async fn measure_bedrock_finality(ctx: &BenchContext) -> Result<Duration> {
+async fn measure_bedrock_finality(ctx: &TestContext) -> Result<Duration> {
     use indexer_service_rpc::RpcClient as _;
     use jsonrpsee::ws_client::WsClientBuilder;
     use sequencer_service_rpc::RpcClient as _;

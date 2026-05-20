@@ -15,7 +15,7 @@ use crate::harness::{ScenarioOutput, finalize_step};
 const FANOUT_COUNT: usize = 10;
 const AMOUNT_PER_TRANSFER: u128 = 100;
 
-pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<ScenarioOutput> {
+pub async fn run(ctx: &mut test_fixtures::TestContext) -> Result<ScenarioOutput> {
     let mut output = ScenarioOutput::new("multi_recipient_fanout");
 
     let def_id = new_public_account(ctx, &mut output, "create_acc_def").await?;
@@ -67,7 +67,7 @@ pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<Scenari
 }
 
 async fn new_public_account(
-    ctx: &mut crate::bench_context::BenchContext,
+    ctx: &mut test_fixtures::TestContext,
     output: &mut ScenarioOutput,
     label: &str,
 ) -> Result<nssa::AccountId> {

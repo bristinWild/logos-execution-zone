@@ -12,7 +12,7 @@ use wallet::cli::{
 
 use crate::harness::{ScenarioOutput, finalize_step};
 
-pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<ScenarioOutput> {
+pub async fn run(ctx: &mut test_fixtures::TestContext) -> Result<ScenarioOutput> {
     let mut output = ScenarioOutput::new("amm_swap_flow");
 
     let def_a = new_public_account(ctx, &mut output, "create_acc_def_a").await?;
@@ -125,7 +125,7 @@ pub async fn run(ctx: &mut crate::bench_context::BenchContext) -> Result<Scenari
 }
 
 async fn new_public_account(
-    ctx: &mut crate::bench_context::BenchContext,
+    ctx: &mut test_fixtures::TestContext,
     output: &mut ScenarioOutput,
     label: &str,
 ) -> Result<nssa::AccountId> {
@@ -148,7 +148,7 @@ async fn new_public_account(
 }
 
 async fn timed_token_new(
-    ctx: &mut crate::bench_context::BenchContext,
+    ctx: &mut test_fixtures::TestContext,
     output: &mut ScenarioOutput,
     label: &str,
     def_id: nssa::AccountId,
@@ -173,7 +173,7 @@ async fn timed_token_new(
 }
 
 async fn timed_token_send(
-    ctx: &mut crate::bench_context::BenchContext,
+    ctx: &mut test_fixtures::TestContext,
     output: &mut ScenarioOutput,
     label: &str,
     from_id: nssa::AccountId,
