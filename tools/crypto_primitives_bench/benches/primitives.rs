@@ -55,8 +55,9 @@ fn bench_encryption(c: &mut Criterion) {
     // measured loop (covered by the SharedSecretKey bench above).
     let recipient_kc = KeyChain::new_os_random();
     let vpk = recipient_kc.viewing_public_key;
+    let npk = recipient_kc.nullifier_public_key;
     let account = Account::default();
-    let account_id = AccountId::new([7; 32]);
+    let account_id = AccountId::for_regular_private_account(&npk, 0);
     let commitment = Commitment::new(&account_id, &account);
     let shared = {
         let mut bytes = [0_u8; 32];
