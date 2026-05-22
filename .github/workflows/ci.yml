@@ -94,6 +94,12 @@ jobs:
       - name: Install active toolchain
         run: rustup install
 
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-rust-cache
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       - name: Lint workspace
         env:
           RISC0_SKIP_BUILD: "1"
@@ -122,6 +128,12 @@ jobs:
 
       - name: Install active toolchain
         run: rustup install
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-rust-cache
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install nextest
         run: cargo install --locked cargo-nextest
@@ -190,6 +202,12 @@ jobs:
       - name: Install active toolchain
         run: rustup install
 
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-rust-cache
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       - name: Install nextest
         run: cargo install --locked cargo-nextest
 
@@ -223,6 +241,12 @@ jobs:
       - name: Install active toolchain
         run: rustup install
 
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-rust-cache
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       - name: Test valid proof
         env:
           RUST_LOG: "info"
@@ -239,6 +263,12 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.head_ref }}
 
       - uses: ./.github/actions/install-risc0
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-rust-cache
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install just
         run: cargo install --locked just
