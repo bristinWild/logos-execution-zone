@@ -132,9 +132,48 @@ jobs:
           RUST_LOG: "info"
         run: cargo nextest run --workspace --exclude integration_tests --all-features
 
+  integration-test-targets:
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.discover.outputs.targets }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.head_ref }}
+
+      - name: Discover integration test targets
+        id: discover
+        run: |
+          declare -a targets=()
+
+          for path in integration_tests/tests/*; do
+            if [[ -f "$path" && "$path" == *.rs ]]; then
+              targets+=("$(basename "$path" .rs)")
+            elif [[ -d "$path" && -f "$path/main.rs" ]]; then
+              targets+=("$(basename "$path")")
+            fi
+          done
+
+          if [[ "${#targets[@]}" -eq 0 ]]; then
+            echo "No integration test targets were discovered." >&2
+            exit 1
+          fi
+
+          mapfile -t targets < <(printf '%s\n' "${targets[@]}" | sort -u)
+          targets_json="$(printf '%s\n' "${targets[@]}" | jq -R . | jq -cs .)"
+
+          echo "targets=$targets_json" >> "$GITHUB_OUTPUT"
+          echo "Discovered integration targets: $targets_json"
+
   integration-tests:
+    needs: integration-test-targets
     runs-on: ubuntu-latest
     timeout-minutes: 90 # TODO: Apply CI cache to speed this up
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJson(needs.integration-test-targets.outputs.targets) }}
+    name: integration-tests (${{ matrix.target }})
     steps:
       - uses: actions/checkout@v5
         with:
@@ -158,7 +197,12 @@ jobs:
         env:
           RISC0_DEV_MODE: "1"
           RUST_LOG: "info"
-        run: cargo nextest run -p integration_tests -- --skip tps_test
+        run: |
+          if [[ "${{ matrix.target }}" == "tps" ]]; then
+            cargo nextest run -p integration_tests --test "${{ matrix.target }}" -- --skip tps_test
+          else
+            cargo nextest run -p integration_tests --test "${{ matrix.target }}"
+          fi
 
   valid-proof-test:
     runs-on: ubuntu-latest
