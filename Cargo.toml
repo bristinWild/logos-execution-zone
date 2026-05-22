@@ -41,6 +41,7 @@ members = [
   "examples/program_deployment/methods/guest",
   "testnet_initial_state",
   "indexer/ffi",
+  "keycard_wallet",
   "test_fixtures",
   "tools/cycle_bench",
   "tools/crypto_primitives_bench",
@@ -77,6 +78,7 @@ faucet_core = { path = "programs/faucet/core" }
 vault_core = { path = "programs/vault/core" }
 test_program_methods = { path = "test_program_methods" }
 testnet_initial_state = { path = "testnet_initial_state" }
+keycard_wallet = { path = "keycard_wallet" }
 test_fixtures = { path = "test_fixtures" }
 
 tokio = { version = "1.50", features = [
@@ -158,6 +160,7 @@ actix-web = { version = "4.13.0", default-features = false, features = [
 ] }
 clap = { version = "4.5.42", features = ["derive", "env"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"] }
+pyo3 = { version = "0.24", features = ["auto-initialize"] }
 
 # Profile for leptos WASM release builds
 [profile.wasm-release]
