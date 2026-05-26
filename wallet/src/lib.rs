@@ -300,7 +300,7 @@ impl WalletCore {
             .key_chain()
             .group_key_holder(&entry.group_label)?;
 
-        if let (Some(pda_seed), Some(program_id)) = (entry.pda_seed, entry.pda_program_id) {
+        if let (Some(pda_seed), Some(program_id)) = (entry.pda_seed, entry.authority_program_id) {
             let keys = holder.derive_keys_for_pda(&program_id, &pda_seed);
             Some(PrivacyPreservingAccount::PrivatePdaShared {
                 account_id,
@@ -343,7 +343,7 @@ impl WalletCore {
         group_label: Label,
         identifier: nssa_core::Identifier,
         pda_seed: Option<nssa_core::program::PdaSeed>,
-        pda_program_id: Option<nssa_core::program::ProgramId>,
+        authority_program_id: Option<nssa_core::program::ProgramId>,
     ) {
         self.storage.key_chain_mut().insert_shared_private_account(
             account_id,
@@ -351,7 +351,7 @@ impl WalletCore {
                 group_label,
                 identifier,
                 pda_seed,
-                pda_program_id,
+                authority_program_id,
                 account: Account::default(),
             },
         );
@@ -732,7 +732,7 @@ impl WalletCore {
                     .key_chain()
                     .group_key_holder(&entry.group_label)?;
 
-                let keys = match (&entry.pda_seed, &entry.pda_program_id) {
+                let keys = match (&entry.pda_seed, &entry.authority_program_id) {
                     (Some(pda_seed), Some(program_id)) => {
                         holder.derive_keys_for_pda(program_id, pda_seed)
                     }
