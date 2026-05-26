@@ -6,77 +6,180 @@
     {
       "name": "NewFungibleDefinition",
       "accounts": [
-        { "name": "definition_account", "writable": true, "description": "Token definition account (uninitialized)" },
-        { "name": "holding_account", "writable": true, "description": "Token holding account (uninitialized)" }
+        {
+          "name": "definition_account",
+          "writable": true,
+          "description": "Token definition account (uninitialized)"
+        },
+        {
+          "name": "holding_account",
+          "writable": true,
+          "description": "Token holding account (uninitialized)"
+        }
       ],
       "args": [
-        { "name": "name", "type": "string" },
-        { "name": "total_supply", "type": "u128" }
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "total_supply",
+          "type": "u128"
+        }
       ]
     },
     {
       "name": "NewFungibleDefinitionWithAuthority",
       "accounts": [
-        { "name": "definition_account", "writable": true, "description": "Token definition account (uninitialized, authorized)" },
-        { "name": "holding_account", "writable": true, "description": "Token holding account (uninitialized, authorized)" }
+        {
+          "name": "definition_account",
+          "writable": true,
+          "description": "Token definition account (uninitialized, authorized)"
+        },
+        {
+          "name": "holding_account",
+          "writable": true,
+          "description": "Token holding account (uninitialized, authorized)"
+        }
       ],
       "args": [
-        { "name": "name", "type": "string" },
-        { "name": "initial_supply", "type": "u128" },
-        { "name": "mint_authority", "type": "[u8; 32]" }
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "initial_supply",
+          "type": "u128"
+        },
+        {
+          "name": "mint_authority",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
       ]
     },
     {
       "name": "Mint",
       "accounts": [
-        { "name": "definition_account", "writable": true, "description": "Token definition account (initialized, authorized by mint authority)" },
-        { "name": "holding_account", "writable": true, "description": "Token holding account (initialized or uninitialized)" }
+        {
+          "name": "definition_account",
+          "writable": true,
+          "description": "Token definition account (initialized, authorized by mint authority)"
+        },
+        {
+          "name": "holding_account",
+          "writable": true,
+          "description": "Token holding account (initialized or uninitialized)"
+        }
       ],
       "args": [
-        { "name": "amount_to_mint", "type": "u128" }
+        {
+          "name": "amount_to_mint",
+          "type": "u128"
+        }
       ]
     },
     {
       "name": "SetAuthority",
       "accounts": [
-        { "name": "definition_account", "writable": true, "description": "Token definition account (initialized, authorized by current mint authority)" }
+        {
+          "name": "definition_account",
+          "writable": true,
+          "description": "Token definition account (initialized, authorized by current mint authority)"
+        }
       ],
       "args": [
-        { "name": "new_authority", "type": "Option<[u8; 32]>" }
+        {
+          "name": "new_authority",
+          "type": {
+            "option": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        }
       ]
     },
     {
       "name": "Transfer",
       "accounts": [
-        { "name": "sender_account", "writable": true, "description": "Sender token holding account (authorized)" },
-        { "name": "recipient_account", "writable": true, "description": "Recipient token holding account" }
+        {
+          "name": "sender_account",
+          "writable": true,
+          "description": "Sender token holding account (authorized)"
+        },
+        {
+          "name": "recipient_account",
+          "writable": true,
+          "description": "Recipient token holding account"
+        }
       ],
       "args": [
-        { "name": "amount_to_transfer", "type": "u128" }
+        {
+          "name": "amount_to_transfer",
+          "type": "u128"
+        }
       ]
     },
     {
       "name": "Burn",
       "accounts": [
-        { "name": "definition_account", "writable": true, "description": "Token definition account" },
-        { "name": "holding_account", "writable": true, "description": "Token holding account (authorized)" }
+        {
+          "name": "definition_account",
+          "writable": true,
+          "description": "Token definition account"
+        },
+        {
+          "name": "holding_account",
+          "writable": true,
+          "description": "Token holding account (authorized)"
+        }
       ],
       "args": [
-        { "name": "amount_to_burn", "type": "u128" }
+        {
+          "name": "amount_to_burn",
+          "type": "u128"
+        }
       ]
     },
     {
       "name": "InitializeAccount",
       "accounts": [
-        { "name": "definition_account", "writable": false, "description": "Token definition account" },
-        { "name": "holding_account", "writable": true, "description": "Token holding account (uninitialized, authorized)" }
+        {
+          "name": "definition_account",
+          "writable": false,
+          "description": "Token definition account"
+        },
+        {
+          "name": "holding_account",
+          "writable": true,
+          "description": "Token holding account (uninitialized, authorized)"
+        }
       ],
       "args": []
     }
   ],
   "errors": [
-    { "code": 0, "name": "AuthorityRevoked", "msg": "Mint authority has been revoked; this token has a fixed supply" },
-    { "code": 1, "name": "Unauthorized", "msg": "Definition account authorization is missing; only the mint authority can mint" },
-    { "code": 2, "name": "AlreadyRevoked", "msg": "Mint authority already revoked; supply is permanently fixed" }
+    {
+      "code": 0,
+      "name": "AuthorityRevoked",
+      "msg": "Mint authority has been revoked; this token has a fixed supply"
+    },
+    {
+      "code": 1,
+      "name": "Unauthorized",
+      "msg": "Definition account authorization is missing; only the mint authority can mint"
+    },
+    {
+      "code": 2,
+      "name": "AlreadyRevoked",
+      "msg": "Mint authority already revoked; supply is permanently fixed"
+    }
   ]
 }
